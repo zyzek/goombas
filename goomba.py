@@ -71,20 +71,19 @@ class Action(Enum):
 Effects = [Action.Forward, Action.Backward, 
            Action.LeftTurn, Action.RightTurn, Action.Suck, Action.Wait]
 
-# TODO: switch to numbers
 class Sensor(Enum):
-    Bump = "b"
-    Rand = "r"
-    Tile = "t"
-    Left = "sl"
-    Right = "sr"
-    Front = "sf"
-    PosX = "px"
-    PosY = "py"
-    OriX = "ox"
-    OriY = "oy"
-    State = "s"
-    Mem = "m"
+    Bump = 0
+    Rand = 1
+    Tile = 2
+    Left = 3
+    Right = 4
+    Front = 5
+    PosX = 6
+    PosY = 7
+    OriX = 8
+    OriY = 9
+    State = 10
+    Mem = 11
 
     
 class Goomba:
@@ -131,7 +130,7 @@ class Goomba:
                 elif ref.reftype == RefType.Impure_Offset_Call:
                     ref.ref = lambda: self.run_gene(ref.ref)
                 elif ref.reftype == RefType.Poll_Sensor:
-                    sensor = ref.name[1:-1]
+                    sensor = int(ref.name[1:])
                     
                     if sensor == Sensor.PosX:
                         ref.ref = lambda: self.pos[0]
@@ -171,12 +170,12 @@ class Goomba:
 
         self.exec_depth += 1
         retval = g.evaluate()
-        perform_action(g.action, retval)
+        gedanken_action(g.action, retval)
         self.exec_depth -= 1
 
         return retval
 
-    def perform_action(self, action, val):
+    def gedanken_action(self, action, val):
         index = round(val) % self.genome.size()
         # We wrap out-of-range indices so that genes are not useless over most of their range
 
@@ -210,7 +209,6 @@ class Goomba:
         self.sensors[Sensor.Tile] = w.get_tile(*self.pos)
         self.sensors[Sensor.Rand] = randint(0,1)
 
-        # TODO: convert these to matrix arithmetic
         fcoord = [self.pos[0]+self.ori[0], self.pos[1]+self.ori[1]]
         lcoord = [self.pos[0]-self.ori[1], self.pos[1]+self.ori[0]]
         rcoord = [self.pos[0]+self.ori[1], self.pos[1]-self.ori[0]]
@@ -232,8 +230,15 @@ class Goomba:
         i = 0
         while i < len(self.gene_queue):
             gene = self.gene_queue[i]
-            self.perform_action(gene.action, 
+            self.run_gene(gene)
+            i += 1
         
+    def choose_action(self):
+        strongest = (Action.Wait, 0)
+        for impulse in self.intent_weights:
+            if impulse[1] >= strongest[1]:
+                strongest = impulse
+        self.intent = m[0]
 
     
         

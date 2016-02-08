@@ -54,7 +54,7 @@ class Genome:
     def size(self):
         return len(self.genes)
 
-class Delim(Enum):
+class RefDelim(Enum):
     Pure = '['
     Impure = '{'
     Sensor = '<'
@@ -82,27 +82,19 @@ def parse_gene(sequence, gene_index, genome):
             f = lambda l, r: min(genome.fuzziness, max(0, l - r)) / genome.fuzziness
             node._evaluate_ = f
 
-    elif curr_sym[0] == Delim.Pure:
+    elif curr_sym[0] == RefDelim.Pure:
         # offset gene no action
         
-        offset = int(curr_sym[1:-1])
+        offset = int(curr_sym[1:])
         index = (gene_index + offset) % len(genome.genes)
-
-        #index = max(0, min(gene_index + offset, len(genome.genes) - 1)) #clamped
-
         node = FTreeRef(genome.genes[index].function, RefType.Pure_Offset_Call, curr_sym)
-        # We make sure that the genotype itself is not clamped. Numbers out of range might
-        # become meaningful after mutation.
-    elif curr_sym[0] == Delim.Impure:
+    elif curr_sym[0] == RefDelim.Impure:
         # offset gene with action
 
-        offset = int(curr_sym[1:-1])
+        offset = int(curr_sym[1:])
         index = (gene_index + offset) % len(genome.genes)
-        
-        #index = max(0, min(gene_index + offset, len(genome.genes) - 1)) 
-
         node = FTreeRef(genome.genes[index], RefType.Impure_Offset_Call, curr_sym)
-    elif curr_sym[0] == Delim.Sensor:
+    elif curr_sym[0] == RefDelim.Sensor:
         # poll sensor
 
         node = FTreeRef(lambda: 0, RefType.Poll_Sensor, curr_sym)
