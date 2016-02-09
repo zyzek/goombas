@@ -50,11 +50,13 @@
 """
 
 from collections import deque
+import random
 from random import randint
-from enum import Enum
-import functree
+from enum import IntEnum
+from functree import RefType, all_ref_nodes
+import genome
 
-class Action(Enum):
+class Action(IntEnum):
     Nop = 0
     Forward = 1
     Backward = 2
@@ -72,7 +74,7 @@ class Action(Enum):
 Effects = [Action.Forward, Action.Backward, 
            Action.LeftTurn, Action.RightTurn, Action.Suck, Action.Wait]
 
-class Sensor(Enum):
+class Sensor(IntEnum):
     Bump = 0
     Rand = 1
     Tile = 2
@@ -92,10 +94,15 @@ class Goomba:
     NUM_INIT_FUNS = 30
     GENE_QUEUE_SIZE = 100
     MEM_SIZE = 200
+
+    SHAPE = [(-0.1, 0.3),
+             (0.1, 0.3),
+             (0.3, -0.3),
+             (-0.3, -0.3)]
     
-    def __init__(self, sequence, pos=[0,0], ori=[0,1]):
+    def __init__(self, sequence, pos=[0,0]):
         self.pos = pos
-        self.ori = ori
+        self.ori = random.choice([[1,0], [-1,0], [0,1], [0,-1]])
         
         self.sensors = {Sensor.Tile: 0,
                         Sensor.Bump: 0,
@@ -112,9 +119,9 @@ class Goomba:
         self.exec_depth = 0
         self.memory = deque([], Goomba.MEM_SIZE)
 
-        self.genome = Genome(sequence)
+        self.genome = genome.Genome(sequence)
         self.express_genome()
-        self.expr_order = list(range(len(self.genome)))
+        self.expr_order = list(range(len(self.genome.genes)))
         
         self.score = 0
     
@@ -122,7 +129,7 @@ class Goomba:
     def express_genome(self):
         """Hook up genome function references so that it can operate within an agent."""
         for gene in self.genome.genes:
-            func_refs = functree.all_ref_nodes(gene.function)
+            func_refs = all_ref_nodes(gene.function)
             
             for ref in func_refs:
                 if ref.reftype == RefType.Pure_Offset_Call:
@@ -165,12 +172,12 @@ class Goomba:
 
     def run_gene(self, g):
         """Run a gene's function and execute its action, respecting max recursion depth."""
-        if self.exec_depth >= Goomba.Stack_Size:
+        if self.exec_depth >= Goomba.EXEC_STACK_SIZE:
             return 0
 
         self.exec_depth += 1
         retval = g.evaluate()
-        gedanken_action(g.action, retval)
+        self.gedanken_action(g.action, retval)
         self.exec_depth -= 1
 
         return retval
@@ -235,10 +242,10 @@ class Goomba:
         
     def choose_action(self):
         strongest = (Action.Wait, 0)
-        for impulse in self.intent_weights:
+        for impulse in self.intent_weights.items():
             if impulse[1] >= strongest[1]:
                 strongest = impulse
-        self.intent = m[0]
+        self.intent = strongest[0]
 
     
         

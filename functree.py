@@ -1,6 +1,6 @@
-from enum import Enum
+from enum import IntEnum
 
-class Op(Enum):
+class Op(IntEnum):
     Add = 0
     Sub = 1
     Mul = 2
@@ -73,7 +73,7 @@ class FTreeConst(object):
     def __str__(self):
         return str(self.val)
 
-class RefType(Enum):
+class RefType(IntEnum):
     Pure_Offset_Call = 0
     Impure_Offset_Call  = 1
     Poll_Sensor = 2

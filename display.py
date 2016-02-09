@@ -3,6 +3,7 @@ import numpy as np
 import sys
 
 from world import Tile_State
+from goomba import Goomba
 
 canvas = None 
 
@@ -52,6 +53,18 @@ void main()
 
 }"""
 
+goomba_vertex_shader = """
+attribute vec2 a_position;
+attribute vec4 a_color;
+uniform vec2 u_offset;
+uniform float u_scale;
+varying vec4 v_color;
+void main()
+{
+    gl_Position = vec4((u_scale*a_position) + u_offset, 0.0, 1.0);
+    v_color = a_color;
+}"""
+
 
 
 class Canvas(app.Canvas):
@@ -60,19 +73,18 @@ class Canvas(app.Canvas):
         self.b_out_col = (0.9, 0.3, 0.3, 1.0)
         self.dirt_col = (0.2, 0.8, 0.2, 1.0)
         self.dirt_size = 5.0
-
+        self.goomba_col = (0.2, 0.7, 0.7, 1.0)
 
 
         self.boundary_verts = None
         self.boundary_interior = None
+        self.goomba_verts = None
+        self.goomba_colors = None
         self.set_world(world)
 
-        print(self.boundary_verts)
-
-        app.Canvas.__init__(self, keys='interactive', size=(800, 800))
+        app.Canvas.__init__(self, keys='interactive', size=(1200, 1200))
 
         self.boundary_program = gloo.Program(boundary_vertex_shader, boundary_fragment_shader)
-
         self.boundary_program["a_position"] = self.boundary_verts
         self.boundary_program["u_color"] = (1.0, 0.0, 1.0, 1.0)
         self.boundary_program["u_scale"] = 2.0/len(self.world.state)
@@ -84,20 +96,35 @@ class Canvas(app.Canvas):
         self.dirty_program["u_color"] = self.dirt_col
         self.dirty_program["u_scale"] = 2.0/len(self.world.state)
         self.dirty_program["u_offset"] = (-1, -1)
+
+        self.goomba_program = gloo.Program(goomba_vertex_shader, boundary_fragment_shader)
+        self.goomba_program["a_position"] = self.goomba_verts
+        self.goomba_program["a_color"] = self.goomba_colors
+        self.goomba_program["u_scale"] = 2.0/len(self.world.state)
+        self.goomba_program["u_offset"] = (-1, -1)
+
+        self._timer = app.Timer('auto', connect=self.update, start=True)
         
-        self.show()
+
 
     def on_resize(self, event):
         width, height = event.size
         gloo.set_viewport(0, 0, width, height)
 
     def on_draw(self, event):
+        self.world.step()
+        self.update_dirties()
+        self.update_goombas()
+        self.dirty_program["a_position"] = self.dirty_coords
+        self.goomba_program["a_position"] = self.goomba_verts
+
         gloo.clear()
         self.boundary_program["u_color"] = self.b_int_col
         self.boundary_program.draw('triangles', self.boundary_interior)
         self.boundary_program["u_color"] = self.b_out_col
         self.boundary_program.draw('lines', self.boundary_outline)
         self.dirty_program.draw('points')
+        self.goomba_program.draw('triangles')
 
     def set_world(self, world):
         # Generate point set for boundaries, dirt, goombas
@@ -110,19 +137,12 @@ class Canvas(app.Canvas):
         boundary_verts = []
         boundary_interior = []
         boundary_outline = []
-        dirty_coords = []
-
-        dirt_offset = 0.5 #self.dirt_size*self.pixel_scale
-
 
         # obtain list of all boundaries and dirty cells
         for y in range(len(world.state)):
             for x in range(len(world.state[y])):
-                t_s = world.get_tile(x, y)
-                if t_s == Tile_State.boundary:
+                if world.get_tile(x, y) == Tile_State.boundary:
                     boundaries.append((x, y))
-                elif t_s == Tile_State.dirty:
-                    dirty_coords.append((x + dirt_offset, y + dirt_offset))
 
         #generate vert list for corners of boundaries
         for x, y in boundaries:
@@ -180,10 +200,50 @@ class Canvas(app.Canvas):
             self.boundary_verts = gloo.VertexBuffer(np.array(boundary_verts, np.float32))
             self.boundary_interior = gloo.IndexBuffer(np.array(boundary_interior, np.uint32))
             self.boundary_outline = gloo.IndexBuffer(np.array(boundary_outline, np.uint32))
-            self.dirty_coords = gloo.VertexBuffer(np.array(dirty_coords, np.float32))
-
-
-    def update_world_geom(self):
-        # Update dirt, goomba locations
-        if not world:
+            
+            self.update_dirties()
+            self.update_goombas()
+    
+    def update_dirties(self):
+        if not self.world:
             return
+
+        dirty_coords = []
+        dirt_offset = 0.5 
+
+        for y in range(len(self.world.state)):
+            for x in range(len(self.world.state[y])):
+                if self.world.get_tile(x, y) == Tile_State.dirty:
+                    dirty_coords.append((x + dirt_offset, y + dirt_offset))
+
+        self.dirty_coords = gloo.VertexBuffer(np.array(dirty_coords, np.float32))
+
+    def update_goombas(self):
+        if not self.world:
+            return
+        
+        verts = []
+        colors = []
+        gs = Goomba.SHAPE
+
+        for goomba in self.world.goombas:
+            for vert in [gs[0], gs[1], gs[2], gs[0], gs[2], gs[3]]:
+                rot = rotated(vert, goomba.ori)
+                verts.append((goomba.pos[0] + rot[0] + 0.5, goomba.pos[1] + rot[1] + 0.5))
+            
+            gc = goomba.genome.colors
+            colors.extend([gc[0], gc[1], gc[2], gc[0], gc[2], gc[3]])
+
+        self.goomba_verts = gloo.VertexBuffer(np.array(verts, np.float32))
+        self.goomba_colors = np.array(colors, np.float32)
+        
+def rotated(point, rotation):
+    if rotation == [0, 1]:
+        return point
+    elif rotation == [0, -1]:
+        return [-point[0], -point[1]]
+    elif rotation == [1, 0]:
+        return [point[1], -point[0]]
+    else:
+        return [-point[1], point[0]]
+

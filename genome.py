@@ -24,7 +24,6 @@ and sensors are obviously not hooked up to anything.
 
 from enum import Enum
 from functree import Op, stringops, FTreeNode, FTreeRef, FTreeConst, RefType
-from goomba.py import Action
 
 
 class Gene:
@@ -43,6 +42,12 @@ class Genome:
         self.fuzziness = float(gene_sequences[0][0])
         del gene_sequences[0]
 
+        colorvals = [float(v) for v in gene_sequences[0]]
+        self.colors = [colorvals[i:i+3] + [1.0] for i in range(0, len(colorvals), 3)]
+
+
+        del gene_sequences[0]
+
         self.genes = [Gene(None, None) for _ in range(len(gene_sequences))]
 
         for i in range(self.size()):
@@ -54,10 +59,10 @@ class Genome:
     def size(self):
         return len(self.genes)
 
-class RefDelim(Enum):
+class RefDelim():
     Pure = '['
     Impure = '{'
-    Sensor = '<'
+    Sensor = '$'
 
 def parse_gene(sequence, gene_index, genome):
     curr_sym = sequence.pop(0)

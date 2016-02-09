@@ -1,10 +1,10 @@
-from enum import Enum
+from enum import IntEnum
 from functools import reduce
 import random
 
-from goomba import Action, Sensor
+from goomba import Action, Sensor, Goomba
 
-class Tile_State(Enum):
+class Tile_State(IntEnum):
     boundary = -1
     clean = 0
     dirty = 1
@@ -36,9 +36,9 @@ class World:
 
         self.suck_distrib = [Tile_State.clean]*3 + [Tile_State.dirty]
 
-    def set_tile(self, x, y, z):
-        if is_in_bounds(x, y):
-            self.state[x][y] = z
+    def set_tile(self, x, y, v):
+        if self.is_in_bounds(x, y):
+            self.state[x][y] = v
 
     def get_tile(self, x, y):
         if self.is_in_bounds(x, y):
@@ -60,9 +60,14 @@ class World:
             goomba.think()
             goomba.choose_action()
             self.perform_action(goomba)
+            print(goomba.sensors)
+            for gene in goomba.genome.genes:
+                print(gene.evaluate())
+
 
     def perform_action(self, g):
         action = g.intent
+
 
         if action == Action.Forward:
             bumped = self.move_forward(g)
@@ -70,13 +75,15 @@ class World:
         elif action == Action.Backward:
             bumped = self.move_backward(g)
             g.sensors[Sensor.Bump] = bumped
-        elif action == Action.LeftTurn:
-            self.turn_left(g)
-        elif action == Action.RightTurn:
-            self.turn_right(g)
-        elif action == Action.Suck:
-            self.suck(*g.pos)
-
+        else:
+            g.sensors[Sensor.Bump] = 0
+            
+            if action == Action.LeftTurn:
+                self.turn_left(g)
+            elif action == Action.RightTurn:
+                self.turn_right(g)
+            elif action == Action.Suck:
+                self.suck(*g.pos)
 
 
     def turn_left(self, g):
@@ -116,13 +123,13 @@ class World:
         No effect on boundary tiles.
         Returns 1 if the tile went from clean to dirty, -1 if it went the other way, 0 otherwise.
         """
-        tile_before = get_tile(x, y)
+        tile_before = self.get_tile(x, y)
 
-        if (not is_in_bounds(x, y)) or (tile_before == Tile_State.boundary):
+        if (not self.is_in_bounds(x, y)) or (tile_before == Tile_State.boundary):
             return 0
         
         tile_after = random.choice(self.suck_distrib)
-        set_tile(x, y, tile_after)
+        self.set_tile(x, y, tile_after)
         
         if (tile_before == Tile_State.clean) and (tile_after == Tile_State.dirty):
             return -1
