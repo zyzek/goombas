@@ -41,7 +41,7 @@ class World:
             self.state[x][y] = z
 
     def get_tile(self, x, y):
-        if is_in_bounds(x, y):
+        if self.is_in_bounds(x, y):
             return self.state[x][y]
         return Tile_State.boundary
     

@@ -51,6 +51,7 @@
 
 from collections import deque
 from random import randint
+from enum import Enum
 import functree
 
 class Action(Enum):
@@ -92,31 +93,30 @@ class Goomba:
     GENE_QUEUE_SIZE = 100
     MEM_SIZE = 200
     
-    self.pos = [0, 0]
-    self.ori = [0, 1]
-    self.state = 0
-    
-    self.sensors{Sensor.Tile: 0,
-                 Sensor.Bump: 0,
-                 Sensor.Rand: 0,
-                 Sensor.Left: 0,
-                 Sensor.Front: 0,
-                 Sensor.Right: 0}
-
-    self.intent_weights = {e: 0 for e in Effects}
-    self.intent = Action.Wait
-    
-    self.gene_queue = deque([], Goomba.GENE_QUEUE_SIZE)
-    self.exec_depth = 0
-    self.memory = deque([], Goomba.MEM_SIZE)
-
-    self.score = 0
-
-    def __init__(self, sequence, pos):
+    def __init__(self, sequence, pos=[0,0], ori=[0,1]):
         self.pos = pos
+        self.ori = ori
+        
+        self.sensors = {Sensor.Tile: 0,
+                        Sensor.Bump: 0,
+                        Sensor.Rand: 0,
+                        Sensor.Left: 0,
+                        Sensor.Front: 0,
+                        Sensor.Right: 0}
+        self.state = 0
+
+        self.intent_weights = {e: 0 for e in Effects}
+        self.intent = Action.Wait
+        
+        self.gene_queue = deque([], Goomba.GENE_QUEUE_SIZE)
+        self.exec_depth = 0
+        self.memory = deque([], Goomba.MEM_SIZE)
+
         self.genome = Genome(sequence)
         self.express_genome()
         self.expr_order = list(range(len(self.genome)))
+        
+        self.score = 0
     
 
     def express_genome(self):
