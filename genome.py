@@ -1,11 +1,10 @@
 """
-
 A Genome is a sequence of genes each of which is first a number determining
 what action the gene contributes to, followed by an arithmetic expression in
 polish notation, whose operators include:
     + - / * ^ < > =
 Leaf nodes in the arithmetic tree, the atoms of the arithmetic include:
-    numbers; 
+    numbers;
     sensors: <px>, <py>, <ox>, <oy>, <t>, <b>, <r>, <sf>, <sl>, <sr>, <s>, <m>
     [n] the result of calling the function in the gene n places along the genome
     {n} the result of evaluating the function of the gene n places along, and performing its action
@@ -22,8 +21,7 @@ However, if not inside an agent, it's possible to encode infinite recursive loop
 and sensors are obviously not hooked up to anything.
 """
 
-from enum import Enum
-from functree import Op, stringops, FTreeNode, FTreeRef, FTreeConst, RefType
+from functree import Op, STRING_OPS, FTreeNode, FTreeRef, FTreeConst, RefType
 
 
 class Gene:
@@ -34,11 +32,10 @@ class Gene:
     def evaluate(self):
         return self.function()
 
-# TODO: Consider switching to undelimited genes. Investigate gene separation at parse fail point.
 class Genome:
     def __init__(self, sequence):
         gene_sequences = [s.strip().split() for s in sequence.split("|")]
-        
+
         self.fuzziness = float(gene_sequences[0][0])
         del gene_sequences[0]
 
@@ -67,29 +64,26 @@ class RefDelim():
 def parse_gene(sequence, gene_index, genome):
     curr_sym = sequence.pop(0)
     node = None
-    
-    if curr_sym in stringops:
+
+    if curr_sym in STRING_OPS:
         # binary operator
 
-        left = parse_gene(sequence, gene_index, genome.genes)
-        right = parse_gene(sequence, gene_index, genome.genes)
-        
-        node = FTreeNode(stringops[curr_sym], left, right)
-        
+        left = parse_gene(sequence, gene_index, genome)
+        right = parse_gene(sequence, gene_index, genome)
+
+        node = FTreeNode(STRING_OPS[curr_sym], left, right)
+
         # Replace equality and comparison operators with fuzzy versions
-        if node.op == Op.Eq:
-            f = lambda l, r: max(0, (genome.fuzziness - abs(l - r))) / genome.fuzziness
-            node._evaluate_ = f
-        elif node.op == Op.LT:
-            f = lambda l, r: min(genome.fuzziness, max(0, r - l)) / genome.fuzziness
-            node._evaluate_ = f
-        elif node.op == Op.GT:
-            f = lambda l, r: min(genome.fuzziness, max(0, l - r)) / genome.fuzziness
-            node._evaluate_ = f
+        if node.operator == Op.Equ:
+            node._evaluate_ = lambda l, r: max(0, (genome.fuzziness - abs(l - r))) / genome.fuzziness
+        elif node.operator == Op.Les:
+            node._evaluate_ = lambda l, r: min(genome.fuzziness, max(0, r - l)) / genome.fuzziness
+        elif node.operator == Op.Gre:
+            node._evaluate_ = lambda l, r: min(genome.fuzziness, max(0, l - r)) / genome.fuzziness
 
     elif curr_sym[0] == RefDelim.Pure:
         # offset gene no action
-        
+
         offset = int(curr_sym[1:])
         index = (gene_index + offset) % len(genome.genes)
         node = FTreeRef(genome.genes[index].function, RefType.Pure_Offset_Call, curr_sym)

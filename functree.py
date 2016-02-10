@@ -1,53 +1,59 @@
+"""Function trees representing arithmetic expressions."""
+
 from enum import IntEnum
 
 class Op(IntEnum):
+    """An enumeration of possible function tree operators."""
     Add = 0
     Sub = 1
     Mul = 2
     Div = 3
     Mod = 4
     Pow = 5
-    Eq = 6
-    LT = 7
-    GT = 8
+    Equ = 6
+    Les = 7
+    Gre = 8
 
-opstrings = {Op.Add: "+",
-             Op.Sub: "-",
-             Op.Mul: "*",
-             Op.Div: "/",
-             Op.Mod: "%",
-             Op.Pow: "^",
-             Op.Eq: "=",
-             Op.LT: "<",
-             Op.GT: ">"}
+OP_STRINGS = {Op.Add: "+",
+              Op.Sub: "-",
+              Op.Mul: "*",
+              Op.Div: "/",
+              Op.Mod: "%",
+              Op.Pow: "^",
+              Op.Equ: "=",
+              Op.Les: "<",
+              Op.Gre: ">"}
 
-stringops = {v: k for k, v in opstrings.items()}
+STRING_OPS = {v: k for k, v in OP_STRINGS.items()}
 
 class FTreeNode(object):
+    """An internal node of a function tree; a binary operator with two children."""
+    #pylint: disable=too-few-public-methods
+
     is_leaf = False
 
     def __init__(self, op, l, r):
-        self.op = op
+        self.operator = op
         self.left = l
         self.right = r
 
-        if self.op == Op.Add:
+        if self.operator == Op.Add:
             self._evaluate_ = lambda l, r: l + r
-        elif self.op == Op.Sub:
+        elif self.operator == Op.Sub:
             self._evaluate_ = lambda l, r: l - r
-        elif self.op == Op.Mul:
+        elif self.operator == Op.Mul:
             self._evaluate_ = lambda l, r: l * r
-        elif self.op == Op.Div:
+        elif self.operator == Op.Div:
             self._evaluate_ = lambda l, r: l if (r == 0) else (l / r)
-        elif self.op == Op.Mod:
+        elif self.operator == Op.Mod:
             self._evaluate_ = lambda l, r: l if (r == 0) else (l % r)
-        elif self.op == Op.Pow:
+        elif self.operator == Op.Pow:
             self._evaluate_ = lambda l, r: l ** r
-        elif self.op == Op.Eq:
+        elif self.operator == Op.Equ:
             self._evaluate_ = lambda l, r: l == r
-        elif self.op == Op.LT:
+        elif self.operator == Op.Les:
             self._evaluate_ = lambda l, r: l < r
-        elif self.op == Op.GT:
+        elif self.operator == Op.Gre:
             self._evaluate_ = lambda l, r: l > r
         else:
             self._evaluate_ = lambda l, r: 0
@@ -59,9 +65,12 @@ class FTreeNode(object):
         return self._evaluate_(lres, rres)
 
     def __str__(self):
-        return opstrings[self.op] + " " +  str(self.left) + " " + str(self.right)
+        return OP_STRINGS[self.operator] + " " +  str(self.left) + " " + str(self.right)
 
 class FTreeConst(object):
+    """Leaf node of a function tree containing a constant numeric value."""
+    #pylint: disable=too-few-public-methods
+
     is_leaf = True
 
     def __init__(self, i):
@@ -74,16 +83,25 @@ class FTreeConst(object):
         return str(self.val)
 
 class RefType(IntEnum):
+    """Enumeration of possible reference types for leaf nodes.
+
+    Pure_Offset_Call: A call to some function in the enclosing genome without gene side-effects.
+    Impure_Offset_Call: A call to such a function, but performing its gene's operation.
+    Poll_Sensor: a reference to a function that returns the current state of a sensor."""
+
     Pure_Offset_Call = 0
-    Impure_Offset_Call  = 1
+    Impure_Offset_Call = 1
     Poll_Sensor = 2
 
 class FTreeRef(object):
+    """Function tree leaf node containing a callable object returning an arbitrary value."""
+    #pylint: disable=too-few-public-methods
+
     is_leaf = True
 
-    def __init__(self, r, t, name):
-        self.ref = r
-        self.reftype = t
+    def __init__(self, ref, reftype, name):
+        self.ref = ref
+        self.reftype = reftype
         self.name = name
 
     def __call__(self):
@@ -93,39 +111,10 @@ class FTreeRef(object):
         return self.name
 
 def all_ref_nodes(tree):
+    """Return a list of all FTreeRef nodes in an arithmetic tree."""
     if tree.is_leaf:
         if type(tree).__name__ == "FTreeRef":
             return [tree]
         return []
-    
     return all_ref_nodes(tree.left) + all_ref_nodes(tree.right)
 
-"""
-class incremental(object):
-    def __init__(self):
-        self.i = 0
-
-    def __call__(self):
-        ret = self.i
-        self.i += 1
-        return ret
-
-if __name__ == '__main__':
-    incr = FTreeRef(incremental(), "incr")
-    one = FTreeConst(1)
-    two = FTreeConst(2)
-    ten = FTreeConst(10)
-
-    two_plus_ten = FTreeNode(Op.Add, two, ten)
-    minus_one = FTreeNode(Op.Sub, two_plus_ten, one)
-    reciprocal_incr = FTreeNode(Op.Div, one, incr)
-    root = FTreeNode(Op.Pow, minus_one, reciprocal_incr)
-
-    print(root())
-    print(root())
-    print(root())
-    print(root())
-    print(root())
-
-    print(root)
-"""

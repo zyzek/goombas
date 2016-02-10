@@ -1,22 +1,21 @@
-from vispy import app, gloo
-import numpy as np
-import sys
 
+import numpy as np
+from vispy import app, gloo
 from world import Tile_State
 from goomba import Goomba
 
-canvas = None 
+CANVAS = None 
 
 def get_canvas(world=None):
-    global canvas 
-    if not canvas:
-        canvas = Canvas(world)
+    global CANVAS
+    if not CANVAS:
+        CANVAS = Canvas(world)
     
     if not world:
-        return canvas
+        return CANVAS
     
-    canvas.set_world(world)
-    return canvas
+    CANVAS.set_world(world)
+    return CANVAS
 
 boundary_vertex_shader = """
 attribute vec2 a_position;
@@ -104,8 +103,6 @@ class Canvas(app.Canvas):
         self.goomba_program["u_offset"] = (-1, -1)
 
         self._timer = app.Timer('auto', connect=self.update, start=True)
-        
-
 
     def on_resize(self, event):
         width, height = event.size
@@ -132,7 +129,7 @@ class Canvas(app.Canvas):
 
         if not world:
             return
-        
+
         boundaries = []
         boundary_verts = []
         boundary_interior = []
@@ -162,13 +159,13 @@ class Canvas(app.Canvas):
             except ValueError:
                 x1y = len(boundary_verts)
                 boundary_verts.append((x + 1, y))
-            
+
             try:
                 xy1 = boundary_verts.index((x, y + 1))
             except ValueError:
                 xy1 = len(boundary_verts)
                 boundary_verts.append((x, y + 1))
-            
+
             try:
                 x1y1 = boundary_verts.index((x + 1, y + 1))
             except ValueError:
@@ -186,7 +183,7 @@ class Canvas(app.Canvas):
 
             # boundary interiors
             boundary_interior.extend([xy, xy1, x1y, x1y, xy1, x1y1])
-            
+
             # boundary outlines: edges of boundary tiles abutting non-boundary tiles
             if world.get_tile(x - 1, y) != Tile_State.boundary:
                 boundary_outline.extend([xy, xy1])
@@ -200,16 +197,16 @@ class Canvas(app.Canvas):
             self.boundary_verts = gloo.VertexBuffer(np.array(boundary_verts, np.float32))
             self.boundary_interior = gloo.IndexBuffer(np.array(boundary_interior, np.uint32))
             self.boundary_outline = gloo.IndexBuffer(np.array(boundary_outline, np.uint32))
-            
+
             self.update_dirties()
             self.update_goombas()
-    
+
     def update_dirties(self):
         if not self.world:
             return
 
         dirty_coords = []
-        dirt_offset = 0.5 
+        dirt_offset = 0.5
 
         for y in range(len(self.world.state)):
             for x in range(len(self.world.state[y])):
@@ -221,7 +218,7 @@ class Canvas(app.Canvas):
     def update_goombas(self):
         if not self.world:
             return
-        
+
         verts = []
         colors = []
         gs = Goomba.SHAPE
@@ -230,13 +227,13 @@ class Canvas(app.Canvas):
             for vert in [gs[0], gs[1], gs[2], gs[0], gs[2], gs[3]]:
                 rot = rotated(vert, goomba.ori)
                 verts.append((goomba.pos[0] + rot[0] + 0.5, goomba.pos[1] + rot[1] + 0.5))
-            
+
             gc = goomba.genome.colors
             colors.extend([gc[0], gc[1], gc[2], gc[0], gc[2], gc[3]])
 
         self.goomba_verts = gloo.VertexBuffer(np.array(verts, np.float32))
         self.goomba_colors = np.array(colors, np.float32)
-        
+
 def rotated(point, rotation):
     if rotation == [0, 1]:
         return point
