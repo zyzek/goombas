@@ -1,5 +1,8 @@
 """Main entry point for pitting goomba against goomba."""
 
+import cProfile
+import re
+
 import random
 from vispy import app
 import display
@@ -8,7 +11,9 @@ import world
 def main():
     """Set up the world and run it."""
 
-    gen = " | 1 1 | 3 * 2 $0 | 4 * 3 $1 | 5 * 4 $2"
+    #gen = " | 1 1 | 3 * 2 $0 | 4 * 3 $1 | 5 * 4 $2 | 12 + 1 $10 | 5 * = 0 % $10 7 * 100 $1"
+
+    gen = " | 1 1 | 3 * 2 $0 | 4 * 3 $1 | 12 + 1 $10 | 5 * = 0 % $10 7 * 100 $1"
     seq = "1.0 | 0.3 0.8 0.8  0.3 0.8 0.8  0.8 0.3 0.8  0.8 0.3 0.8" + gen
     
     gen2 = " | 12 + 1 $10 | 1 * 10 = 0 % $10 10 | 6 5 | 3 * 15 $0 | 5 * 25 $2" \
@@ -44,7 +49,7 @@ def main():
 
     print("Generated Goombas")
 
-    wrld = world.World(100, 100, [seq]*10 + [seeker]*10)
+    wrld = world.World(50, 50, [seq]*10 + [seeker]*10)
     print("Generated World")
 
     canv = display.get_canvas(wrld)
@@ -57,4 +62,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    #main()
+    cProfile.run('main()')

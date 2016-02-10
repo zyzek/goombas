@@ -10,6 +10,7 @@ def get_canvas(world=None):
     global CANVAS
     if not CANVAS:
         CANVAS = Canvas(world)
+        return CANVAS
     
     if not world:
         return CANVAS
@@ -77,6 +78,8 @@ class Canvas(app.Canvas):
 
         self.boundary_verts = None
         self.boundary_interior = None
+        self.dirty_verts = None
+        self.dirty_indices = None
         self.goomba_verts = None
         self.goomba_colors = None
         self.set_world(world)
@@ -90,8 +93,8 @@ class Canvas(app.Canvas):
         self.boundary_program["u_offset"] = (-1, -1)
 
         self.dirty_program = gloo.Program(dirty_vertex_shader, boundary_fragment_shader)
-        self.dirty_program["a_position"] = self.dirty_coords
-        self.dirty_program["a_pointsize"] = self.dirt_size * (self.pixel_scale)
+        self.dirty_program["a_position"] = self.dirty_verts
+        self.dirty_program["a_pointsize"] = self.dirt_size #* (self.pixel_scale)
         self.dirty_program["u_color"] = self.dirt_col
         self.dirty_program["u_scale"] = 2.0/len(self.world.state)
         self.dirty_program["u_offset"] = (-1, -1)
@@ -112,7 +115,7 @@ class Canvas(app.Canvas):
         self.world.step()
         self.update_dirties()
         self.update_goombas()
-        self.dirty_program["a_position"] = self.dirty_coords
+        
         self.goomba_program["a_position"] = self.goomba_verts
 
         gloo.clear()
@@ -120,7 +123,7 @@ class Canvas(app.Canvas):
         self.boundary_program.draw('triangles', self.boundary_interior)
         self.boundary_program["u_color"] = self.b_out_col
         self.boundary_program.draw('lines', self.boundary_outline)
-        self.dirty_program.draw('points')
+        self.dirty_program.draw('points', self.dirty_indices)
         self.goomba_program.draw('triangles')
 
     def set_world(self, world):
@@ -134,10 +137,14 @@ class Canvas(app.Canvas):
         boundary_verts = []
         boundary_interior = []
         boundary_outline = []
+        
+        dirty_verts = []
+        dirty_offset = 0.5
 
-        # obtain list of all boundaries and dirty cells
+        # obtain list of all boundaries and dirty cell points
         for y in range(len(world.state)):
             for x in range(len(world.state[y])):
+                dirty_verts.append((x + dirty_offset, y + dirty_offset))
                 if world.get_tile(x, y) == Tile_State.boundary:
                     boundaries.append((x, y))
 
@@ -198,6 +205,8 @@ class Canvas(app.Canvas):
             self.boundary_interior = gloo.IndexBuffer(np.array(boundary_interior, np.uint32))
             self.boundary_outline = gloo.IndexBuffer(np.array(boundary_outline, np.uint32))
 
+            self.dirty_verts = gloo.VertexBuffer(np.array(dirty_verts, np.float32))
+
             self.update_dirties()
             self.update_goombas()
 
@@ -206,14 +215,15 @@ class Canvas(app.Canvas):
             return
 
         dirty_coords = []
-        dirt_offset = 0.5
+        h = len(self.world.state)
+        w = len(self.world.state[0])
 
-        for y in range(len(self.world.state)):
-            for x in range(len(self.world.state[y])):
+        for y in range(h):
+            for x in range(w):
                 if self.world.get_tile(x, y) == Tile_State.dirty:
-                    dirty_coords.append((x + dirt_offset, y + dirt_offset))
+                    dirty_coords.append(x + y*w)
 
-        self.dirty_coords = gloo.VertexBuffer(np.array(dirty_coords, np.float32))
+        self.dirty_indices = gloo.IndexBuffer(np.array(dirty_coords, np.uint32))
 
     def update_goombas(self):
         if not self.world:
