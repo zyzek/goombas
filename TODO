@@ -15,3 +15,6 @@ Heritable stack contents
 Switch from dirt to food, add energy budget
 Split into multiple genomes, independently transformed? 
 Undelimited genetic sequences
+    work out how to represent operators as numbers? 
+    or in general, any linear sequence representing an arithmetic
+    expression which is valid no matter where you truncate it.

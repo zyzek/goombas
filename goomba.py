@@ -154,9 +154,9 @@ class Goomba:
         self.exec_depth = 0
         self.memory = deque([], Goomba.MEM_SIZE)
 
-        self.genome = genome.Genome(sequence)
+        self.genome = genome.Genome(*sequence)
         self.express_genome()
-        self.expr_order = list(range(len(self.genome.genes)))
+        self.expr_order = list(range(len(self.genome)))
 
         self.score = 0
 
@@ -180,12 +180,13 @@ class Goomba:
             func_refs = all_ref_nodes(gene.function)
 
             for ref in func_refs:
+                #TODO: FIX THIS, lambdas are local here, need not to be!
                 if ref.reftype == RefType.Pure_Offset_Call:
                     ref.ref = lambda: self.run_func(ref.ref)
                 elif ref.reftype == RefType.Impure_Offset_Call:
                     ref.ref = lambda: self.run_gene(ref.ref)
                 elif ref.reftype == RefType.Poll_Sensor:
-                    sensor = Sensor(int(ref.name[1:]))
+                    sensor = Sensor(ref.val)
 
                     if sensor in sensor_funcs:
                         ref.ref = sensor_funcs[sensor]
@@ -228,7 +229,7 @@ class Goomba:
         Otherwise, it is a mental activity: perform it.
         """
 
-        index = round(val) % self.genome.size()
+        index = round(val) % len(self.genome)
         # We wrap out-of-range indices so that genes are not useless over most of their range
 
         if action == Action.Nop:
@@ -243,7 +244,7 @@ class Goomba:
                 self.expr_order[order_index - 1] = index
         elif action == Action.Demote:
             order_index = self.expr_order.index(index)
-            if order_index != self.genome.size() - 1:
+            if order_index != len(self.genome) - 1:
                 self.expr_order[order_index] = self.expr_order[order_index + 1]
                 self.expr_order[order_index + 1] = index
         elif action == Action.Remember:
