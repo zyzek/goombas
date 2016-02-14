@@ -53,7 +53,7 @@ from collections import deque
 import random
 from random import randint
 from enum import IntEnum
-from functree import RefType, all_ref_nodes
+from functree import RefType
 import genome
 
 class Action(IntEnum):
@@ -177,15 +177,15 @@ class Goomba:
                         Sensor.Rand: (lambda: self.sensors[Sensor.Rand])}
 
         for gene in self.genome.genes:
-            func_refs = all_ref_nodes(gene.function)
+            func_refs = [n for n in gene.function.as_list() if n.is_leaf()]
 
             for ref in func_refs:
                 #TODO: FIX THIS, lambdas are local here, need not to be!
-                if ref.reftype == RefType.Pure_Offset_Call:
+                if ref.ref_type == RefType.Pure_Offset_Call:
                     ref.ref = lambda: self.run_func(ref.ref)
-                elif ref.reftype == RefType.Impure_Offset_Call:
+                elif ref.ref_type == RefType.Impure_Offset_Call:
                     ref.ref = lambda: self.run_gene(ref.ref)
-                elif ref.reftype == RefType.Poll_Sensor:
+                elif ref.ref_type == RefType.Poll_Sensor:
                     sensor = Sensor(ref.val)
 
                     if sensor in sensor_funcs:
