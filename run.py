@@ -57,7 +57,7 @@ def main():
 
     print("Generated Goombas")
 
-    wrld = world.World(50, 50, [(meta, gen)]*10)
+    wrld = world.World(50, 50, [(meta, gen)])
     for goom in wrld.goombas:
         print([str(gene.function) for gene in goom.genome.genes])
     print("Generated World")

@@ -183,7 +183,7 @@ class Genome:
             if func_node.ref_type == RefType.Pure_Offset_Call:
                 func_node.ref = self.genes[ref_index].function
             elif func_node.ref_type == RefType.Impure_Offset_Call:
-                ref_index = (func_node.val + index) % len(self.genes)
+                func_node.ref = self.genes[ref_index]
 
     def fuzzify(self, func_node):
         if isinstance(func_node, FTreeNode):

@@ -66,7 +66,7 @@ class FTreeNode(object):
         elif self.operator == Op.Mod:
             self._evaluate_ = lambda l, r: l if (r == 0) else (l % r)
         elif self.operator == Op.Pow:
-            self._evaluate_ = lambda l, r: l ** r
+            self._evaluate_ = lambda l, r: (l ** r).real
         elif self.operator == Op.Equ:
             self._evaluate_ = lambda l, r: l == r
         elif self.operator == Op.Les:
@@ -121,7 +121,7 @@ class FTreeLeaf(object):
         ref_type = random.choice(list(RefType))
 
         if ref_type == RefType.Pure_Offset_Call or ref_type == RefType.Impure_Offset_Call:
-            val = random.randrange(gen_len)
+            val = random.randrange(gen_len) * random.choice([-1, 1])
         elif ref_type == RefType.Poll_Sensor:
             val = random.randrange(len(goomba.Sensor))
         else:

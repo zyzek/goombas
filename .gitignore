@@ -64,3 +64,6 @@ target/
 # Wings IDE
 *.wpr
 *.wpu
+
+# Vim swapfiles
+*.swp
