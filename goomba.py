@@ -155,6 +155,7 @@ class Goomba:
         self.memory = deque([], Goomba.MEM_SIZE)
 
         self.genome = genome.Genome(*sequence)
+        self.genome.mutate()
         self.express_genome()
         self.expr_order = list(range(len(self.genome)))
 
@@ -162,6 +163,11 @@ class Goomba:
 
     def express_genome(self):
         """Hook up genome function references so that it can operate within an agent."""
+        
+        def make_run_func(ref):
+            return lambda: self.run_func(ref)
+        def make_run_gene(ref):
+            return lambda: self.run_gene(ref)
 
         sensor_funcs = {Sensor.PosX: (lambda: self.pos[0]),
                         Sensor.PosY: (lambda: self.pos[1]),
@@ -182,9 +188,9 @@ class Goomba:
             for ref in func_refs:
                 #TODO: FIX THIS, lambdas are local here, need not to be!
                 if ref.ref_type == RefType.Pure_Offset_Call:
-                    ref.ref = lambda: self.run_func(ref.ref)
+                    ref.ref = make_run_func(ref.ref)
                 elif ref.ref_type == RefType.Impure_Offset_Call:
-                    ref.ref = lambda: self.run_gene(ref.ref)
+                    ref.ref = make_run_gene(ref.ref)
                 elif ref.ref_type == RefType.Poll_Sensor:
                     sensor = Sensor(ref.val)
 

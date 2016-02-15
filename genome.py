@@ -24,10 +24,12 @@ metagenome, composed of floating point numbers, like <gene>
     <fuzziness>         determines the fuzziness of the comparison operators
     <low> <high>        the range of values possible for newly-generated floats
     <fun_gen_depth>     the maximum depth that a newly-generated random function may extend to
-    three <r><g><b>     triplets determining colour
+    <incr> <mult>       max value of increment or multiple factors involved in mutating constants
+    3 x <r><g><b>       triplets determining colour
     <mute_mute_rate>    determining the mutation rate of the mutation rate genes
     <genome_mute_rate>  mute rate of genome mutations
     individual relative genome mute rates: <insert>, <dupe>, <delete>, <invert>, <mutegene>
+    individual relative constant mute rates: <incr>, <decr>, <mult>, <div>
 
 """
 
@@ -40,7 +42,6 @@ metagenome, composed of floating point numbers, like <gene>
         inversion
     Gene-level mutations:
         Operations on numbers:
-            zero
             increment
             decrement
             increase 10%
@@ -68,17 +69,16 @@ class GenomeMutes(IntEnum):
     Invert = 3
     MuteGene = 4
 
-class EnumMutes(IntEnum):
-    increment = 0
-    decrement = 1
-    random = 2
+class ConstMutes(IntEnum):
+    Increment = 0
+    Decrement = 1
+    Incremult = 2
+    Decremult = 3
 
-class NumMutes(IntEnum):
-    zero = 0
-    increment = 1
-    decrement = 2 #TODO: Make the summand genetically determined
-    incremult = 3
-    decremult = 4 #TODO: Make the factor genetically determined
+class EnumMutes(IntEnum):
+    Increment = 0
+    Decrement = 1
+    Random = 2
 
 
 class Gene:
@@ -111,15 +111,21 @@ class Genome:
         self.fuzziness = meta_genes[0]
         self.const_bounds = [meta_genes[1], meta_genes[2]]
         self.fun_gen_depth = meta_genes[3]
+        self.incr_range = meta_genes[4]
+        self.mult_range = meta_genes[5]
 
-        self.colors = [meta_genes[i:i+3] + [1.0] for i in range(4, 15, 3)]
+        self.colors = [meta_genes[i:i+3] + [1.0] for i in range(6, 17, 3)]
 
         self.mute_rates = {}
-        self.mute_rates["mute"] = meta_genes[16]
-        self.mute_rates["genome"] = meta_genes[17]
+        self.mute_rates["mute"] = meta_genes[18]
+        self.mute_rates["genome"] = meta_genes[19]
 
-        for key, val in zip(list(GenomeMutes), meta_genes[18:23]):
+        for key, val in zip(list(GenomeMutes), meta_genes[20:25]):
             self.mute_rates[key] = val
+
+        for key, val in zip(list(ConstMutes), meta_genes[25:29]):
+            self.mute_rates[key] = val
+
 
         genome_rel_mute_rates = []
         total = 0
@@ -131,10 +137,25 @@ class Genome:
 
         # Normalised
         for i, _ in enumerate(genome_rel_mute_rates):
-            genome_rel_mute_rates[i] *= self.mute_rates["genome"] / total
+            genome_rel_mute_rates[i] /= total
 
         genome_rel_mute_rates = list(zip(list(GenomeMutes), genome_rel_mute_rates))
         self.mute_rates["genome_rel"] = genome_rel_mute_rates
+
+        # As above
+        const_rel_mute_rates = []
+        total = 0
+
+        for k in list(ConstMutes):
+            total += self.mute_rates[k]
+            const_rel_mute_rates.append(total)
+
+        for i, _ in enumerate(const_rel_mute_rates):
+            const_rel_mute_rates[i] /= total
+
+        const_rel_mute_rates = list(zip(list(ConstMutes), const_rel_mute_rates))
+        self.mute_rates["const_rel"] = const_rel_mute_rates
+
 
         # Now handle the behavioural genes
         gene_sequences = [s.strip().split() for s in sequence.split("|")]
@@ -185,32 +206,39 @@ class Genome:
             # 2. Check if the gene mutates.
             rand = random.random()
             mutation = None
-            for k, v in self.mute_rates["genome_rel"]:
-                if rand < v:
-                    mutation = k
-                    break
+            if rand < self.mute_rates["genome"]:
+                rand = random.random()
+                for key, val in self.mute_rates["genome_rel"]:
+                    if rand < val:
+                        mutation = key
+                        break
 
             # 3. Apply appropriate mutations, if any.
-            if mutation:
+            if mutation is not None:
                 fuzz = -1
                 if mutation == GenomeMutes.Insert:
                     new_gene = Gene.random(round(self.fun_gen_depth), len(self), self.const_bounds)
                     self.genes.insert(i, new_gene)
                     fuzz = i
                     i += 1
+                    print("INSERT: " + str(new_gene.function))
                 elif mutation == GenomeMutes.Dupe:
                     self.genes.insert(i, self.genes[i].copy())
                     fuzz = i
                     i += 1
+                    print("DUPE: " + str(self.genes[i].function))
                 elif mutation == GenomeMutes.Delete:
+                    print("DELETE: " + str(self.genes[i].function))
                     del self.genes[i]
                     i -= 1
                 elif mutation == GenomeMutes.Invert:
                     swapindex = (i + 1)%len(self)
+                    print("INVERT: " + str(i) + ", " + str(swapindex))
                     tmp = self.genes[i]
                     self.genes[i] = self.genes[swapindex]
                     self.genes[swapindex] = tmp
                 elif mutation == GenomeMutes.MuteGene:
+                    print("MUTEGENE: " + str(self.genes[i].function))
                     self.genes[i].mutate()
                     fuzz = i
 
@@ -223,13 +251,88 @@ class Genome:
 
         # 5. Mutate the metagenome
         # fuzz [0.0, inf)
+        self.fuzziness = self.mutated_num(self.fuzziness, self.mute_rates["genome"], 0.001, None)
+
         # const bounds (-inf, inf), but small smaller than large
-        # fun gen depth [0.0, 1.0]
+        self.const_bounds[0] = self.mutated_num(self.const_bounds[0],
+                                                self.mute_rates["genome"], None, None)
+        self.const_bounds[1] = self.mutated_num(self.const_bounds[1],
+                                                self.mute_rates["genome"], None, None)
+        if self.const_bounds[0] > self.const_bounds[1]:
+            self.const_bounds = reversed(self.const_bounds)
+
+        # fun gen depth [0.0, 5.0]
+        self.fun_gen_depth = self.mutated_by_factor(self.fun_gen_depth,
+                                                    1.7, self.mute_rates["genome"], [0.001, 5.0])
+
+        # incr_range [0.0, inf)
+        self.incr_range = self.mutated_num(self.incr_range, self.mute_rates["genome"], 0.001, None)
+        # mult_range [1.0, inf)
+        self.mult_range = self.mutated_num(self.mult_range, self.mute_rates["genome"], 1.0, None)
+
         # colors [0.0, 1.0]
+        for col in self.colors:
+            for i, _ in enumerate(col[:3]):
+                col[i] = self.mutated_by_factor(col[i], 1.2, 0.33, [0.0, 1.0])
+                # Manually set colour mute rate high, for visual appeal, and no fitness value,
+                # so this simply drifts
+
+
         # mute_rates "mute", "genome" [0.0, 1.0]
+        self.mute_rates["mute"] = self.mutated_by_const(self.mute_rates["mute"],
+                                                        0.04, self.mute_rates["genome"], [0.001, 1.0])
+        self.mute_rates["genome"] = self.mutated_by_const(self.mute_rates["genome"],
+                                                          0.04, self.mute_rates["mute"], [0.001, 1.0])
+
         # other mute_rates [0.0, inf)
-        #TODO FILLME
+        for k in list(GenomeMutes) + list(ConstMutes):
+            self.mute_rates[k] = self.mutated_num(self.mute_rates[k],
+                                                  self.mute_rates["mute"], 0.001, None)
 
     def __len__(self):
         return len(self.genes)
 
+    def mutated_by_factor(self, val, factor, mute_prob, bounds):
+        if random.random() > mute_prob:
+            return val
+
+        rfactor = 1.0 + (random.random() * (factor - 1.0))
+        rfactor = random.choice([rfactor, 1.0/rfactor])
+
+        return max(bounds[0], min(bounds[1], val*rfactor))
+
+    def mutated_by_const(self, val, const, mute_prob, bounds):
+        if random.random() > mute_prob:
+            return val
+
+        rconst = random.random() * const
+        rconst = random.choice([rconst, -rconst])
+
+        return max(bounds[0], min(bounds[1], val + rconst))
+
+    def mutated_num(self, num, probability, low_clamp, high_clamp):
+        if random.random() > probability:
+            return num
+        rand = random.random()
+        mute = None
+        for key, val in self.mute_rates["genome_rel"]:
+            if rand <= val:
+                mute = key
+                break
+
+        muted = num
+        if mute == ConstMutes.Increment:
+            muted += random.random() * self.incr_range
+        elif mute == ConstMutes.Decrement:
+            muted -= random.random() * self.incr_range
+        elif mute == ConstMutes.Incremult: # Assumes mult_range >= 1
+            muted *= (random.random() * (self.mult_range-1)) + 1
+        elif mute == ConstMutes.Decremult:
+            muted /= (random.random() * (self.mult_range-1)) + 1
+
+        if low_clamp is not None:
+            muted = max(low_clamp, muted)
+        if high_clamp is not None:
+            muted = min(high_clamp, muted)
+
+        return muted

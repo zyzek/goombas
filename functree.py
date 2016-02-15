@@ -81,7 +81,7 @@ class FTreeNode(object):
         if max_depth <= 1:
             return FTreeLeaf.random(gen_len, const_bounds)
 
-        operator = random.choice(Op)
+        operator = random.choice(list(Op))
         left = cls.random(random.randrange(max_depth-1), gen_len, const_bounds)
         right = cls.random(random.randrange(max_depth-1), gen_len, const_bounds)
 
@@ -103,21 +103,6 @@ class FTreeNode(object):
 
     def copy(self):
         return FTreeNode(self.operator, self.left.copy(), self.right.copy())
-
-#class FTreeConst(object):
-#    """Leaf node of a function tree containing a constant numeric value."""
-#
-#    def __init__(self, v):
-#        self.val = v
-#
-#    def __call__(self):
-#        return self.val
-#
-#    def __str__(self):
-#        return str(self.val)
-#
-#    def copy(self):
-#        return FTreeConst(self.val)
 
 class FTreeLeaf(object):
     """Function tree leaf node containing a callable object returning an arbitrary value."""
