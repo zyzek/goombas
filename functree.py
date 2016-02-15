@@ -66,7 +66,7 @@ class FTreeNode(object):
         elif self.operator == Op.Mod:
             self._evaluate_ = lambda l, r: l if (r == 0) else (l % r)
         elif self.operator == Op.Pow:
-            self._evaluate_ = lambda l, r: (l ** r).real
+            self._evaluate_ = lambda l, r: 0 if l == 0 else (l ** r).real
         elif self.operator == Op.Equ:
             self._evaluate_ = lambda l, r: l == r
         elif self.operator == Op.Les:
@@ -77,13 +77,13 @@ class FTreeNode(object):
             self._evaluate_ = lambda l, r: 0
 
     @classmethod
-    def random(cls, max_depth, gen_len, const_bounds):
+    def random(cls, max_depth, gen_len, const_bounds, leaf_weights):
         if max_depth <= 1:
-            return FTreeLeaf.random(gen_len, const_bounds)
+            return FTreeLeaf.random(gen_len, const_bounds, leaf_weights)
 
         operator = random.choice(list(Op))
-        left = cls.random(random.randrange(max_depth-1), gen_len, const_bounds)
-        right = cls.random(random.randrange(max_depth-1), gen_len, const_bounds)
+        left = cls.random(random.randrange(max_depth-1), gen_len, const_bounds, leaf_weights)
+        right = cls.random(random.randrange(max_depth-1), gen_len, const_bounds, leaf_weights)
 
         return cls(operator, left, right)
 
@@ -93,7 +93,12 @@ class FTreeNode(object):
     def __call__(self):
         lres = self.left()
         rres = self.right()
-        return self._evaluate_(lres, rres)
+        try:
+            return self._evaluate_(lres, rres)
+        except Exception as e:
+            print(e)
+            return 0
+
 
     def __str__(self):
         return OP_STRINGS[self.operator] + " " +  str(self.left) + " " + str(self.right)
@@ -117,8 +122,9 @@ class FTreeLeaf(object):
         return cls(None, RefType.Constant, val)
 
     @classmethod
-    def random(cls, gen_len, const_bounds):
-        ref_type = random.choice(list(RefType))
+    def random(cls, gen_len, const_bounds, leaf_weights):
+        #ref_type = random.choice(list(RefType))
+        ref_type = weighted_choice(leaf_weights)
 
         if ref_type == RefType.Pure_Offset_Call or ref_type == RefType.Impure_Offset_Call:
             val = random.randrange(gen_len) * random.choice([-1, 1])
@@ -172,6 +178,27 @@ def parse_func(sequence):
         node = FTreeLeaf.init_const(float(curr_sym))
 
     return node
+
+
+def weighted_choice(weighted_items):
+    """Take a dict mapping items to weights, return a weighted random choice of the objects."""
+    total = 0
+    cume_list = []
+
+    for item, weight in weighted_items.items():
+        total += weight
+        cume_list.append([item, total])
+
+    for pair in cume_list:
+        pair[1] /= total
+
+    rand = random.random()
+
+    for item, val in cume_list:
+        if rand < val:
+            return item
+    
+    return None
 
 
 

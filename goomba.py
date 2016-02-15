@@ -186,7 +186,6 @@ class Goomba:
             func_refs = [n for n in gene.function.as_list() if n.is_leaf()]
 
             for ref in func_refs:
-                #TODO: FIX THIS, lambdas are local here, need not to be!
                 if ref.ref_type == RefType.Pure_Offset_Call:
                     ref.ref = make_run_func(ref.ref)
                 elif ref.ref_type == RefType.Impure_Offset_Call:

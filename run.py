@@ -11,7 +11,8 @@ import world
 def main():
     """Set up the world and run it."""
     
-    meta = "1.0  -5.0 5.0  3  5.0 2.0   0.3 0.8 0.8  0.3 0.8 0.8  0.8 0.3 0.8  0.8 0.3 0.8   0.1 0.1 1 1 1 1 1 1"
+    meta = "1.0  -5.0 5.0  3  5.0 2.0   0.3 0.8 0.8  0.3 0.8 0.8  0.8 0.3 0.8  0.8 0.3 0.8 " \
+           "0.1  0.1  10 1 1 1 1  1 1 1 1  1 1 2 2"
     gen = " 12 + 1 $10 | 4 * = 0 % $10 23 * 100 $1 | " \
              " 5 * 100 $2 | " \
              " 4 * 90 $4 | 3 * 90 $3 | 1 * 100 $5 | " \
@@ -57,7 +58,7 @@ def main():
 
     print("Generated Goombas")
 
-    wrld = world.World(50, 50, [(meta, gen)])
+    wrld = world.World(50, 50, [(meta, gen)]*10)
     for goom in wrld.goombas:
         print([str(gene.function) for gene in goom.genome.genes])
     print("Generated World")

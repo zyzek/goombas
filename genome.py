@@ -28,8 +28,9 @@ metagenome, composed of floating point numbers, like <gene>
     3 x <r><g><b>       triplets determining colour
     <mute_mute_rate>    determining the mutation rate of the mutation rate genes
     <genome_mute_rate>  mute rate of genome mutations
-    individual relative genome mute rates: <insert>, <dupe>, <delete>, <invert>, <mutegene>
-    individual relative constant mute rates: <incr>, <decr>, <mult>, <div>
+    individual relative genome mute rates: <insert> <dupe> <delete> <invert> <mutegene>
+    individual relative constant mute rates: <incr> <decr> <mult> <div>
+    relative prevalence of leaf types: <pure_call> <impure_call> <poll_sensor> <constant>
 
 """
 
@@ -60,8 +61,9 @@ metagenome, composed of floating point numbers, like <gene>
 
 import random
 from enum import IntEnum
-from functree import Op, FTreeNode, FTreeLeaf, RefType, parse_func
+from functree import Op, FTreeNode, FTreeLeaf, RefType, parse_func, weighted_choice
 import goomba
+
 class GenomeMutes(IntEnum):
     Insert = 0
     Dupe = 1
@@ -87,9 +89,9 @@ class Gene:
         self.action = action
 
     @classmethod
-    def random(cls, max_depth, gen_len, const_bounds):
+    def random(cls, max_depth, gen_len, const_bounds, leaf_weights):
         action = random.choice(list(goomba.Action))
-        function = FTreeNode.random(max_depth, gen_len, const_bounds)
+        function = FTreeNode.random(max_depth, gen_len, const_bounds, leaf_weights)
         return cls(action, function)
 
     def evaluate(self):
@@ -120,42 +122,10 @@ class Genome:
         self.mute_rates["mute"] = meta_genes[18]
         self.mute_rates["genome"] = meta_genes[19]
 
-        for key, val in zip(list(GenomeMutes), meta_genes[20:25]):
-            self.mute_rates[key] = val
-
-        for key, val in zip(list(ConstMutes), meta_genes[25:29]):
-            self.mute_rates[key] = val
-
-
-        genome_rel_mute_rates = []
-        total = 0
-
-        # Running sum, for later random selection.
-        for k in list(GenomeMutes):
-            total += self.mute_rates[k]
-            genome_rel_mute_rates.append(total)
-
-        # Normalised
-        for i, _ in enumerate(genome_rel_mute_rates):
-            genome_rel_mute_rates[i] /= total
-
-        genome_rel_mute_rates = list(zip(list(GenomeMutes), genome_rel_mute_rates))
-        self.mute_rates["genome_rel"] = genome_rel_mute_rates
-
-        # As above
-        const_rel_mute_rates = []
-        total = 0
-
-        for k in list(ConstMutes):
-            total += self.mute_rates[k]
-            const_rel_mute_rates.append(total)
-
-        for i, _ in enumerate(const_rel_mute_rates):
-            const_rel_mute_rates[i] /= total
-
-        const_rel_mute_rates = list(zip(list(ConstMutes), const_rel_mute_rates))
-        self.mute_rates["const_rel"] = const_rel_mute_rates
-
+        
+        self.mute_rates["genome_rel"] = dict(zip(list(GenomeMutes), meta_genes[20:25]))
+        self.mute_rates["const_rel"] = dict(zip(list(ConstMutes), meta_genes[25:29]))
+        self.mute_rates["leaf_rel"] = dict(zip(list(RefType), meta_genes[29:33]))
 
         # Now handle the behavioural genes
         gene_sequences = [s.strip().split() for s in sequence.split("|")]
@@ -207,17 +177,15 @@ class Genome:
             rand = random.random()
             mutation = None
             if rand < self.mute_rates["genome"]:
-                rand = random.random()
-                for key, val in self.mute_rates["genome_rel"]:
-                    if rand < val:
-                        mutation = key
-                        break
+                mutation = weighted_choice(self.mute_rates["genome_rel"])
 
-            # 3. Apply appropriate mutations, if any.
+              # 3. Apply appropriate mutations, if any.
             if mutation is not None:
                 fuzz = -1
                 if mutation == GenomeMutes.Insert:
-                    new_gene = Gene.random(round(self.fun_gen_depth), len(self), self.const_bounds)
+                    new_gene = Gene.random(round(self.fun_gen_depth),
+                                           len(self), self.const_bounds,
+                                           self.mute_rates["leaf_rel"])
                     self.genes.insert(i, new_gene)
                     fuzz = i
                     i += 1
@@ -285,9 +253,13 @@ class Genome:
                                                           0.04, self.mute_rates["mute"], [0.001, 1.0])
 
         # other mute_rates [0.0, inf)
-        for k in list(GenomeMutes) + list(ConstMutes):
-            self.mute_rates[k] = self.mutated_num(self.mute_rates[k],
-                                                  self.mute_rates["mute"], 0.001, None)
+        rel_lists = [self.mute_rates["genome_rel"],
+                     self.mute_rates["const_rel"],
+                     self.mute_rates["leaf_rel"]]
+
+        for rel_list in rel_lists:
+            for k in rel_list:
+                rel_list[k] = self.mutated_num(rel_list[k], self.mute_rates["mute"], 0.001, None)
 
     def __len__(self):
         return len(self.genes)
@@ -313,13 +285,8 @@ class Genome:
     def mutated_num(self, num, probability, low_clamp, high_clamp):
         if random.random() > probability:
             return num
-        rand = random.random()
-        mute = None
-        for key, val in self.mute_rates["genome_rel"]:
-            if rand <= val:
-                mute = key
-                break
-
+        
+        mute = weighted_choice(self.mute_rates["const_rel"])
         muted = num
         if mute == ConstMutes.Increment:
             muted += random.random() * self.incr_range
@@ -336,3 +303,5 @@ class Genome:
             muted = min(high_clamp, muted)
 
         return muted
+
+        
