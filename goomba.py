@@ -131,7 +131,7 @@ class Goomba:
              (0.3, -0.3),
              (-0.3, -0.3)]
 
-    def __init__(self, sequence, pos=None):
+    def __init__(self, sequences, pos=None):
         if not pos:
             self.pos = [0, 0]
         else:
@@ -154,8 +154,7 @@ class Goomba:
         self.exec_depth = 0
         self.memory = deque([], Goomba.MEM_SIZE)
 
-        self.genome = genome.Genome(*sequence)
-        self.genome.mutate()
+        self.genome = genome.Genome(*sequences)
         self.express_genome()
         self.expr_order = list(range(len(self.genome)))
 
@@ -306,4 +305,11 @@ class Goomba:
             if impulse[1] >= strongest[1]:
                 strongest = impulse
         self.intent = strongest[0]
+
+
+def breed(mum, dad):
+    new_genome = genome.cross_genomes(mum.genome, dad.genome)
+    new_genome.mutate()
+    return Goomba(new_genome)
+    
 

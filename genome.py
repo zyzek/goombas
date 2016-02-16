@@ -107,6 +107,9 @@ class Gene(object):
     def evaluate(self):
         return self.function()
 
+    def __str__(self):
+        return str(self.action.value) + " " + str(self.function)
+
     def mutate(self, genome):
         if random.random() < genome.mute_rates["gene_action"]:
             # Mutate this gene's action
@@ -208,15 +211,15 @@ class Genome(object):
 
         # Set up first the metagenome
         meta_genes = [float(g) for g in meta.strip().split()]
-
-        self.fuzziness = meta_genes[0]
-        self.const_bounds = [meta_genes[1], meta_genes[2]]
-        self.fun_gen_depth = meta_genes[3]
-        self.incr_range = meta_genes[4]
-        self.mult_range = meta_genes[5]
-
-        self.colors = [meta_genes[i:i+3] + [1.0] for i in range(6, 17, 3)]
-
+        
+        self.colors = [meta_genes[i:i+3] + [1.0] for i in range(0, 11, 3)]
+        
+        self.fuzziness = meta_genes[12]
+        self.const_bounds = [meta_genes[13], meta_genes[14]]
+        self.fun_gen_depth = meta_genes[15]
+        self.incr_range = meta_genes[16]
+        self.mult_range = meta_genes[17]
+        
         self.mute_rates = {}
         self.mute_rates["mute"] = meta_genes[18]
         self.mute_rates["genome"] = meta_genes[19]
@@ -243,6 +246,22 @@ class Genome(object):
             self.genes[i].function = func
 
         self.link()
+    
+    def sequences(self):
+        metastr = ""
+        for col in self.colors:
+            metastr += " ".join(str(c) for c in col[:3]) + " "
+        
+        for key in ["mute", "genome", "gene_action", "struct_mod", "leaf_type"]:
+            metastr += str(self.mute_rates[key]) + " "
+        
+        for key in ["genome_rel", "const_rel", "leaf_rel", "enum_rel", "struct_rel"]:
+            metastr += " ".join(str(v) for v in self.mute_rates[key].values()) + " "
+
+        mainstr = " | ".join(str(gene) for gene in self.genes)
+
+        return [metastr, mainstr]
+
 
     def link(self):
         for i in range(len(self.genes)):
@@ -449,6 +468,53 @@ def mutated_intenum(curr, enum_type, mute_prob, enum_rel):
         return enum_type((curr - 1) % len(enum_type))
     else:
         return random.choice(list(enum_type))
+
+
+def cross_genomes(genome_a, genome_b):
+    return cross_genome_sequences(genome_a.sequences(), genome_b.sequences())
+
+def cross_genome_sequences(seqs_a, seqs_b):
+    meta_a = seqs_a[0].strip().split()
+    meta_b = seqs_b[0].strip().split()
+    meta_index = random.randrange(len(meta_a))
+    new_meta = meta_a[:meta_index] + meta_b[meta_index:]
+    meta = " ".join(meta_a[:6] + meta_b[6:12] + new_meta[12:])
+
+    main_a = seqs_a[1].strip().split("|")
+    main_b = seqs_b[1].strip().split("|")
+    main_index = random.randrange(min(len(main_a), len(main_b)))
+    new_main = main_a[:main_index] + main_b[main_index:]
+    new_main[main_index] = cross_gene_sequences(main_a[main_index], main_b[main_index])
+    main = " | ".join(new_main)
+
+    return (meta, main)
+
+def cross_gene_sequences(gene_a, gene_b):
+    atomised_a = gene_a.strip().split()
+    atomised_b = gene_b.strip().split()
+
+    new_action = random.choice([atomised_a.pop(0), atomised_b.pop(0)])
+
+    func_a = parse_func(atomised_a)
+    func_b = parse_func(atomised_b)
+
+    node_a = random.choice(func_a.as_list())
+    node_b = random.choice(func_b.as_list())
+
+    if node_a.parent is None:
+        return new_action + " " + str(func_b)
+    elif node_a.parent.left == node_a:
+        node_a.parent.left = node_b
+    else:
+        node_a.parent.right = node_b
+
+    root = node_a.parent
+
+    while root.parent is not None:
+        root = root.parent
+
+    return new_action + " " + str(root)
+
 
 
 

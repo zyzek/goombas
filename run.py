@@ -8,15 +8,16 @@ import re
 from vispy import app
 import display
 import world
+import genome
 
 def main():
     """Set up the world and run it."""
-    metadesc = OrderedDict([("fuzziness", "1.0"),
+    metadesc = OrderedDict([("colors", "0.3 0.8 0.8  0.3 0.8 0.8  0.8 0.3 0.8  0.8 0.3 0.8"),
+                            ("fuzziness", "1.0"),
                             ("const_bounds", "-5.0 5.0"),
                             ("fun_gen_depth", "3"),
                             ("incr_range", "5.0"),
-                            ("mult_range", "2.0"),
-                            ("colors", "0.3 0.8 0.8  0.3 0.8 0.8  0.8 0.3 0.8  0.8 0.3 0.8")])
+                            ("mult_range", "2.0")])
     muterates = OrderedDict([("mute", "0.1"),
                              ("genome", "0.1"),
                              ("gene_action", "0.3"),
@@ -75,8 +76,11 @@ def main():
     slist.append(seq2)"""
 
     print("Generated Goombas")
+    bredgen = genome.Genome(*genome.cross_genome_sequences((meta, gen), (meta, gen)))
+    bredgen.mutate()
+    
 
-    wrld = world.World(50, 50, [(meta, gen)]*10)
+    wrld = world.World(50, 50, [bredgen.sequences()]) #[(meta, gen)]*10)
     for goom in wrld.goombas:
         print([str(gene.function) for gene in goom.genome.genes])
     print("Generated World")
