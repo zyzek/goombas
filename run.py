@@ -37,6 +37,12 @@ def main():
              " 4 * 90 $4 | 3 * 90 $3 | 1 * 100 $5 | " \
              " 3 * * 80 $1 $0 | 4 * * 80 $1 - 1 $0 | " \
              " 1 20 " 
+            # Increment state per step, random turn
+            # Suck up stuff if it's present underneath bot
+            # Turn towards food
+            # If bumped, turn away from obstacle
+            # Baseline instinct to move forward
+
 
 
     #gen = " | 1 1 | 3 * 2 $0 | 4 * 3 $1 | 5 * 4 $2 | 12 + 1 $10 | 5 * = 0 % $10 7 * 100 $1"
@@ -58,22 +64,6 @@ def main():
              " 3 * * 80 $1 $0 | 4 * * 80 $1 - 1 $0 | " \
              " 1 20 " 
     """
-            # Increment state per step, random turn
-            # Suck up stuff if it's present underneath bot
-            # Turn towards food
-            # If bumped, turn away from obstacle
-            # Baseline instinct to move forward
-
-
-    """slist = []
-
-    for _ in range(10):
-        rseq = "1.0 | " + " ".join([str(random.random()) for _ in range(12)]) + gen
-        slist.append(rseq)
-
-    slist.append(seq)
-    slist.append(sense)
-    slist.append(seq2)"""
 
     print("Generated Goombas")
     bredgen = genome.Genome(*genome.cross_genome_sequences((meta, gen), (meta, gen)))

@@ -121,14 +121,14 @@ class Sensor(IntEnum):
 
 class Count(IntEnum):
     Dirt = 0
-    Sucks = 1
-    FwdMoves = 2
-    BckwdMoves = 3
-    Bumps = 5
-    LeftTurns = 6
-    RightTurns = 7
-    Thoughts = 8
-    GenomeSize = 9
+    FwdMoves = 1
+    BckwdMoves = 2
+    Bumps = 3
+    LeftTurns = 4
+    RightTurns = 5
+    Sucks = 6
+    Thoughts = 7
+    GenomeSize = 8
 
 
 class Goomba:
@@ -142,8 +142,8 @@ class Goomba:
                     Count.FwdMoves: -100,
                     Count.BckwdMoves: -100,
                     Count.Bumps: -50,
-                    Count.LeftTurns: -50,
-                    Count.RightTurns: -50,
+                    Count.LeftTurns: -35,
+                    Count.RightTurns: -35,
                     Count.Sucks: -50,
                     Count.Thoughts: -1, 
                     Count.GenomeSize: -5}
@@ -404,6 +404,14 @@ class Goomba:
                  (tile_after == world.Tile_State.clean):
                 wrld.set_tile(x, y, tile_after)
                 self.counts[Count.Dirt] += 1
+
+    def score(self):
+        score = 0
+
+        for count in list(Count):
+            score += self.counts[count]*Goomba.COUNT_VALUES[count]
+
+        return score
 
 
 
