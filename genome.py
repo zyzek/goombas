@@ -40,30 +40,6 @@ metagenome, composed of floating point numbers, like <gene>
 """
 
 
-"""
-    Genome-level mutations:
-        insertion,
-        duplication,
-        deletion,
-        inversion
-    Gene-level mutations:
-        Operations on numbers:
-            increment
-            decrement
-            increase 10%
-            decrease 10%
-        Operations on operators
-            random operation
-            increment op
-            decrement op
-            swap operands
-            convert to leaf
-        Operations on leaves
-            convert type (const, pure, impure, sensor)
-            add operator above
-            convert to larger subtree
-"""
-
 import random
 from enum import IntEnum
 from functree import Op, FTreeNode, FTreeLeaf, RefType, parse_func, weighted_choice
@@ -109,6 +85,9 @@ class Gene(object):
 
     def __str__(self):
         return str(self.action.value) + " " + str(self.function)
+
+    def size(self):
+        return self.function.size()
 
     def mutate(self, genome):
         if random.random() < genome.mute_rates["gene_action"]:
@@ -395,7 +374,14 @@ class Genome(object):
                                           [0.001, None])
 
     def __len__(self):
+        """Number of genes in the genome."""
         return len(self.genes)
+
+    def size(self):
+        """Number of function nodes in the genome."""
+        return sum(gene.size() for gene in self.genes)
+        
+
 
     def mutate_colors(self):
         # colours must reside within [0.0, 1.0]
@@ -471,7 +457,7 @@ def mutated_intenum(curr, enum_type, mute_prob, enum_rel):
 
 
 def cross_genomes(genome_a, genome_b):
-    return cross_genome_sequences(genome_a.sequences(), genome_b.sequences())
+    return Genome(*cross_genome_sequences(genome_a.sequences(), genome_b.sequences()))
 
 def cross_genome_sequences(seqs_a, seqs_b):
     meta_a = seqs_a[0].strip().split()

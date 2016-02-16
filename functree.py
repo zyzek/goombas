@@ -113,6 +113,9 @@ class FTreeNode(object):
     def copy(self):
         return FTreeNode(self.operator, self.left.copy(), self.right.copy())
 
+    def size(self):
+        return 1 + self.left.size() + self.right.size()
+
 class FTreeLeaf(object):
     """Function tree leaf node containing a callable object returning an arbitrary value."""
 
@@ -155,6 +158,9 @@ class FTreeLeaf(object):
 
     def copy(self):
         return FTreeLeaf(self.ref, self.ref_type, self.val)
+
+    def size(self):
+        return 1
 
 def parse_func(sequence, parent=None):
     curr_sym = sequence.pop(0)

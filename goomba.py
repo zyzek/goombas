@@ -50,10 +50,10 @@
 """
 
 from collections import deque
-import random
-from random import randint
+from random import randint, choice
 from enum import IntEnum
 from functree import RefType
+import world
 import genome
 
 class Action(IntEnum):
@@ -119,12 +119,34 @@ class Sensor(IntEnum):
     State = 10
     Mem = 11
 
+class Count(IntEnum):
+    Dirt = 0
+    Sucks = 1
+    FwdMoves = 2
+    BckwdMoves = 3
+    Bumps = 5
+    LeftTurns = 6
+    RightTurns = 7
+    Thoughts = 8
+    GenomeSize = 9
+
+
 class Goomba:
     """An autonomous robotic vacuum cleaner whose behaviour is genetically-determined."""
     EXEC_STACK_SIZE = 10
     NUM_INIT_FUNS = 30
     GENE_QUEUE_SIZE = 100
     MEM_SIZE = 200
+
+    COUNT_VALUES = {Count.Dirt: 1000,
+                    Count.FwdMoves: -100,
+                    Count.BckwdMoves: -100,
+                    Count.Bumps: -50,
+                    Count.LeftTurns: -50,
+                    Count.RightTurns: -50,
+                    Count.Sucks: -50,
+                    Count.Thoughts: -1, 
+                    Count.GenomeSize: -5}
 
     SHAPE = [(-0.1, 0.3),
              (0.1, 0.3),
@@ -137,7 +159,7 @@ class Goomba:
         else:
             self.pos = pos
 
-        self.ori = random.choice([[1, 0], [-1, 0], [0, 1], [0, -1]])
+        self.ori = choice([[1, 0], [-1, 0], [0, 1], [0, -1]])
 
         self.sensors = {Sensor.Tile: 0,
                         Sensor.Bump: 0,
@@ -157,8 +179,9 @@ class Goomba:
         self.genome = genome.Genome(*sequences)
         self.express_genome()
         self.expr_order = list(range(len(self.genome)))
-
-        self.score = 0
+        
+        self.counts = {k: 0 for k in list(Count)}
+        self.counts[Count.GenomeSize] = self.genome.size()
 
     def express_genome(self):
         """Hook up genome function references so that it can operate within an agent."""
@@ -212,6 +235,8 @@ class Goomba:
         retval = func()
         self.exec_depth -= 1
 
+        self.counts[Count.Thoughts] += 1
+
         return retval
 
     def run_gene(self, gene):
@@ -223,6 +248,8 @@ class Goomba:
         retval = gene.evaluate()
         self.gedanken_action(gene.action, retval)
         self.exec_depth -= 1
+
+        self.counts[Count.Thoughts] += 1
 
         return retval
 
@@ -305,6 +332,79 @@ class Goomba:
             if impulse[1] >= strongest[1]:
                 strongest = impulse
         self.intent = strongest[0]
+
+
+    def perform_action(self, wrld):
+        action = self.intent
+
+        self.sensors[Sensor.Bump] = 0
+
+        if action == Action.Forward:
+            self.move_forward(wrld)
+        elif action == Action.Backward:
+            self.move_backward(wrld)
+        elif action == Action.LeftTurn:
+            self.turn_left()
+        elif action == Action.RightTurn:
+            self.turn_right()
+        elif action == Action.Suck:
+            self.suck(wrld)
+
+    def turn_left(self):
+        """Rotate an agent anti-clockwise a quarter-turn."""
+        self.ori = [-self.ori[1], self.ori[0]]
+        self.counts[Count.LeftTurns] += 1
+
+    def turn_right(self):
+        """Rotate an agent clockwise a quarter-turn."""
+        self.ori = [self.ori[1], -self.ori[0]]
+        self.counts[Count.RightTurns] += 1
+
+    def move_forward(self, wrld):
+        """ Move an agent one tile in the anti-facing direction."""
+        newpos = [p+o for p, o in zip(self.pos, self.ori)]
+        if wrld.is_in_bounds(*newpos) and wrld.get_tile(*newpos) != world.Tile_State.boundary:
+            self.pos = newpos
+            self.counts[Count.FwdMoves] += 1
+        else:
+            self.counts[Count.Bumps] += 1
+            self.sensors[Sensor.Bump] = 1
+    
+    def move_backward(self, wrld):
+        """ Move an agent one tile in the anti-facing direction."""
+        newpos = [p-o for p, o in zip(self.pos, self.ori)]
+        if wrld.is_in_bounds(*newpos) and wrld.get_tile(*newpos) != world.Tile_State.boundary:
+            self.pos = newpos
+            self.counts[Count.BckwdMoves] += 1
+        else:
+            self.counts[Count.Bumps] += 1
+            self.sensors[Sensor.Bump] = 1
+
+    def suck(self, wrld):
+        """Attempt to clean the dirt from a given tile.
+        There is a chance that the tile will be made dirty instead of clean.
+        No effect on boundary tiles.
+        """
+
+        self.counts[Count.Sucks] += 1
+        x, y = self.pos
+        tile_before = wrld.get_tile(x, y)
+
+        if wrld.is_in_bounds(x, y) and (tile_before != world.Tile_State.boundary):
+            tile_after = choice(wrld.suck_distrib)
+
+            if (tile_before == world.Tile_State.clean) and \
+                    (tile_after == world.Tile_State.dirty) and \
+               self.counts[Count.Dirt] > 0:
+
+                wrld.set_tile(x, y, tile_after)
+                self.counts[Count.Dirt] -= 1
+            
+            elif (tile_before == world.Tile_State.dirty) and \
+                 (tile_after == world.Tile_State.clean):
+                wrld.set_tile(x, y, tile_after)
+                self.counts[Count.Dirt] += 1
+
 
 
 def breed(mum, dad):
