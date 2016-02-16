@@ -28,9 +28,14 @@ metagenome, composed of floating point numbers, like <gene>
     3 x <r><g><b>       triplets determining colour
     <mute_mute_rate>    determining the mutation rate of the mutation rate genes
     <genome_mute_rate>  mute rate of genome mutations
+    <gene_action>       chance to mutate a gene's action; complement of prob to mutate its function
+    <struct_mod>        chance to perform a structure-modifying mutation or a non-structure-modifying one
+    <leaf_type>         chance to mutate a leaf's type or its value
     individual relative genome mute rates: <insert> <dupe> <delete> <invert> <mutegene>
     individual relative constant mute rates: <incr> <decr> <mult> <div>
     relative prevalence of leaf types: <pure_call> <impure_call> <poll_sensor> <constant>
+    relative prevalence of enum mutations: <increment> <decrement> <random>
+    relative rates for gene mutations: <replace_subtree> <operator_above> <swap_operands>
 
 """
 
@@ -82,8 +87,13 @@ class EnumMutes(IntEnum):
     Decrement = 1
     Random = 2
 
+class StructMutes(IntEnum):
+    SubTree = 0
+    OpAbove = 1
+    Swap = 2
 
-class Gene:
+
+class Gene(object):
     def __init__(self, action, function):
         self.function = function
         self.action = action
@@ -97,14 +107,103 @@ class Gene:
     def evaluate(self):
         return self.function()
 
-    def mutate(self):
-        #TODO: FILLME
-        pass
+    def mutate(self, genome):
+        if random.random() < genome.mute_rates["gene_action"]:
+            # Mutate this gene's action
+            self.action = mutated_intenum(self.action, goomba.Action,
+                                          1.0, genome.mute_rates["enum_rel"])
+
+        elif random.random() < genome.mute_rates["struct_mod"]:
+            # Structure-modifying function mutations.
+
+            # Select a random node and mutation
+            node = random.choice(self.function.as_list())
+            mute = weighted_choice(genome.mute_rates["struct_rel"])
+
+            if mute == StructMutes.SubTree:
+                new_node = FTreeNode.random(genome.fun_gen_depth,
+                                            len(genome),
+                                            genome.const_bounds,
+                                            genome.mute_rates["leaf_rel"],
+                                            node.parent)
+                if node.parent is None:
+                    self.function = new_node
+                elif node.parent.left == node:
+                    node.parent.left = new_node
+                else:
+                    node.parent.right = new_node
+
+            elif mute == StructMutes.OpAbove:
+                new_node = FTreeNode(random.choice(list(Op)), None, None, node.parent)
+                
+                if node.parent is None:
+                    self.function = new_node
+                elif node.parent.left == node:
+                    node.parent.left = new_node
+                else:
+                    node.parent.right = new_node
+                
+                new_child = FTreeNode.random(genome.fun_gen_depth,
+                                             len(genome),
+                                             genome.const_bounds,
+                                             genome.mute_rates["leaf_rel"],
+                                             new_node)
+
+                if random.random() < 0.5:
+                    new_node.left = node
+                    new_node.right = new_child
+                else:
+                    new_node.left = new_child
+                    new_node.right = node
+                    
+            elif mute == StructMutes.Swap:
+            # swap operands
+                tmp = node.left
+                node.left = node.right
+                node.right = tmp
+
+        else:
+            # Non-strucure-modifying function mutation
+            
+            # Select a random node
+            node = random.choice(self.function.as_list())
+
+            if isinstance(node, FTreeNode):
+                # mutate operator
+                node.operator = mutated_intenum(node.operator, Op, 
+                                                1.0, genome.mute_rates["enum_rel"])
+            else:
+                if random.random() < genome.mute_rates["leaf_type"]:
+                    # mutate the leaf type
+
+                    new_type = node.ref_type
+                    # Keep trying to mutate until the value actually changes
+                    while new_type == node.ref_type:
+                        new_type = mutated_intenum(node.ref_type, RefType,
+                                                   1.0, genome.mute_rates["leaf_rel"])
+                    if node.ref_type == RefType.Constant:
+                        node.val = round(node.val)  # In case mutating from float to int
+                    node.ref_type = new_type
+                    
+                else:
+                    # mutate the leaf value
+                    if node.ref_type == RefType.Constant:
+                        node.val = mutated_num(node.val, 1.0,
+                                               genome, [None, None])
+                    elif node.ref_type in [RefType.Pure_Offset_Call, RefType.Impure_Offset_Call]:
+                        node.val = mutated_int_in_range(node.val, 1.0,
+                                                        [-len(genome), len(genome)],
+                                                        genome.mute_rates["enum_rel"])
+                    elif node.ref_type == RefType.Poll_Sensor:
+                        node.val = mutated_int_in_range(node.val, 1.0,
+                                                        [0, len(goomba.Sensor) - 1],
+                                                        genome.mute_rates["enum_rel"])
+
 
     def copy(self):
         return Gene(self.action, self.function.copy())
 
-class Genome:
+class Genome(object):
     def __init__(self, meta, sequence):
 
         # Set up first the metagenome
@@ -121,11 +220,16 @@ class Genome:
         self.mute_rates = {}
         self.mute_rates["mute"] = meta_genes[18]
         self.mute_rates["genome"] = meta_genes[19]
-
+        self.mute_rates["gene_action"] = meta_genes[20]
+        self.mute_rates["struct_mod"] = meta_genes[21]
+        self.mute_rates["leaf_type"] = meta_genes[22]
         
-        self.mute_rates["genome_rel"] = dict(zip(list(GenomeMutes), meta_genes[20:25]))
-        self.mute_rates["const_rel"] = dict(zip(list(ConstMutes), meta_genes[25:29]))
-        self.mute_rates["leaf_rel"] = dict(zip(list(RefType), meta_genes[29:33]))
+        self.mute_rates["genome_rel"] = dict(zip(list(GenomeMutes), meta_genes[23:28]))
+        self.mute_rates["const_rel"] = dict(zip(list(ConstMutes), meta_genes[28:32]))
+        self.mute_rates["leaf_rel"] = dict(zip(list(RefType), meta_genes[32:36]))
+        self.mute_rates["enum_rel"] = dict(zip(list(EnumMutes), meta_genes[36:39]))
+        self.mute_rates["struct_rel"] = dict(zip(list(StructMutes), meta_genes[39:42]))
+
 
         # Now handle the behavioural genes
         gene_sequences = [s.strip().split() for s in sequence.split("|")]
@@ -149,7 +253,7 @@ class Genome:
             self.link_func(func_node.left, index)
             self.link_func(func_node.right, index)
         elif isinstance(func_node, FTreeLeaf):
-            ref_index = (func_node.val + index) % len(self.genes)
+            ref_index = (round(func_node.val) + index) % len(self.genes)
             if func_node.ref_type == RefType.Pure_Offset_Call:
                 func_node.ref = self.genes[ref_index].function
             elif func_node.ref_type == RefType.Impure_Offset_Call:
@@ -189,29 +293,29 @@ class Genome:
                     self.genes.insert(i, new_gene)
                     fuzz = i
                     i += 1
-                    print("INSERT: " + str(new_gene.function))
                 elif mutation == GenomeMutes.Dupe:
                     self.genes.insert(i, self.genes[i].copy())
                     fuzz = i
                     i += 1
-                    print("DUPE: " + str(self.genes[i].function))
                 elif mutation == GenomeMutes.Delete:
-                    print("DELETE: " + str(self.genes[i].function))
                     del self.genes[i]
                     i -= 1
                 elif mutation == GenomeMutes.Invert:
                     swapindex = (i + 1)%len(self)
-                    print("INVERT: " + str(i) + ", " + str(swapindex))
                     tmp = self.genes[i]
                     self.genes[i] = self.genes[swapindex]
                     self.genes[swapindex] = tmp
                 elif mutation == GenomeMutes.MuteGene:
-                    print("MUTEGENE: " + str(self.genes[i].function))
-                    self.genes[i].mutate()
+                    self.genes[i].mutate(self)
                     fuzz = i
 
                 if fuzz != -1:
                     self.fuzzify(self.genes[fuzz].function)
+                
+                # Mutate the colours when a functional mutation occurs, for a visual
+                # indication of genetic distance.
+                self.mutate_colors()
+
             i += 1
 
         # 4. Reset genome consistency
@@ -219,38 +323,45 @@ class Genome:
 
         # 5. Mutate the metagenome
         # fuzz [0.0, inf)
-        self.fuzziness = self.mutated_num(self.fuzziness, self.mute_rates["genome"], 0.001, None)
+        self.fuzziness = mutated_num(self.fuzziness, 
+                                     self.mute_rates["genome"], 
+                                     self,
+                                     [0.001, None])
 
         # const bounds (-inf, inf), but small smaller than large
-        self.const_bounds[0] = self.mutated_num(self.const_bounds[0],
-                                                self.mute_rates["genome"], None, None)
-        self.const_bounds[1] = self.mutated_num(self.const_bounds[1],
-                                                self.mute_rates["genome"], None, None)
+        self.const_bounds[0] = mutated_num(self.const_bounds[0],
+                                           self.mute_rates["genome"],
+                                           self,
+                                           [None, None])
+        self.const_bounds[1] = mutated_num(self.const_bounds[1],
+                                           self.mute_rates["genome"], 
+                                           self,
+                                           [None, None])
         if self.const_bounds[0] > self.const_bounds[1]:
             self.const_bounds = reversed(self.const_bounds)
 
         # fun gen depth [0.0, 5.0]
-        self.fun_gen_depth = self.mutated_by_factor(self.fun_gen_depth,
-                                                    1.7, self.mute_rates["genome"], [0.001, 5.0])
+        self.fun_gen_depth = mutated_by_factor(self.fun_gen_depth,
+                                               1.7, self.mute_rates["genome"], [0.001, 5.0])
 
         # incr_range [0.0, inf)
-        self.incr_range = self.mutated_num(self.incr_range, self.mute_rates["genome"], 0.001, None)
+        self.incr_range = mutated_num(self.incr_range,
+                                      self.mute_rates["genome"], 
+                                      self, 
+                                      [0.001, None])
         # mult_range [1.0, inf)
-        self.mult_range = self.mutated_num(self.mult_range, self.mute_rates["genome"], 1.0, None)
+        self.mult_range = mutated_num(self.mult_range, 
+                                      self.mute_rates["genome"],
+                                      self,
+                                      [1.0, None])
 
-        # colors [0.0, 1.0]
-        for col in self.colors:
-            for i, _ in enumerate(col[:3]):
-                col[i] = self.mutated_by_factor(col[i], 1.2, 0.33, [0.0, 1.0])
-                # Manually set colour mute rate high, for visual appeal, and no fitness value,
-                # so this simply drifts
-
+        # Colours used to be mutated here.
 
         # mute_rates "mute", "genome" [0.0, 1.0]
-        self.mute_rates["mute"] = self.mutated_by_const(self.mute_rates["mute"],
-                                                        0.04, self.mute_rates["genome"], [0.001, 1.0])
-        self.mute_rates["genome"] = self.mutated_by_const(self.mute_rates["genome"],
-                                                          0.04, self.mute_rates["mute"], [0.001, 1.0])
+        self.mute_rates["mute"] = mutated_by_const(self.mute_rates["mute"],
+                                                   0.04, self.mute_rates["genome"], [0.001, 1.0])
+        self.mute_rates["genome"] = mutated_by_const(self.mute_rates["genome"],
+                                                     0.04, self.mute_rates["mute"], [0.001, 1.0])
 
         # other mute_rates [0.0, inf)
         rel_lists = [self.mute_rates["genome_rel"],
@@ -259,49 +370,85 @@ class Genome:
 
         for rel_list in rel_lists:
             for k in rel_list:
-                rel_list[k] = self.mutated_num(rel_list[k], self.mute_rates["mute"], 0.001, None)
+                rel_list[k] = mutated_num(rel_list[k],
+                                          self.mute_rates["mute"],
+                                          self,
+                                          [0.001, None])
 
     def __len__(self):
         return len(self.genes)
 
-    def mutated_by_factor(self, val, factor, mute_prob, bounds):
-        if random.random() > mute_prob:
-            return val
+    def mutate_colors(self):
+        # colours must reside within [0.0, 1.0]
+        # The colour mute rate is high for visual appeal;
+        # since no fitness value, would otherwise simply drift
+        for col in self.colors:
+            for i, _ in enumerate(col[:3]):
+                col[i] = mutated_by_factor(col[i], 1.7, 0.7, [0.0, 1.0])
 
-        rfactor = 1.0 + (random.random() * (factor - 1.0))
-        rfactor = random.choice([rfactor, 1.0/rfactor])
+def mutated_by_factor(val, factor, mute_prob, bounds):
+    if random.random() > mute_prob:
+        return val
 
-        return max(bounds[0], min(bounds[1], val*rfactor))
+    rfactor = 1.0 + (random.random() * (factor - 1.0))
+    rfactor = random.choice([rfactor, 1.0/rfactor])
 
-    def mutated_by_const(self, val, const, mute_prob, bounds):
-        if random.random() > mute_prob:
-            return val
+    return max(bounds[0], min(bounds[1], val*rfactor))
 
-        rconst = random.random() * const
-        rconst = random.choice([rconst, -rconst])
+def mutated_by_const(val, const, mute_prob, bounds):
+    if random.random() > mute_prob:
+        return val
 
-        return max(bounds[0], min(bounds[1], val + rconst))
+    rconst = random.random() * const
+    rconst = random.choice([rconst, -rconst])
 
-    def mutated_num(self, num, probability, low_clamp, high_clamp):
-        if random.random() > probability:
-            return num
-        
-        mute = weighted_choice(self.mute_rates["const_rel"])
-        muted = num
-        if mute == ConstMutes.Increment:
-            muted += random.random() * self.incr_range
-        elif mute == ConstMutes.Decrement:
-            muted -= random.random() * self.incr_range
-        elif mute == ConstMutes.Incremult: # Assumes mult_range >= 1
-            muted *= (random.random() * (self.mult_range-1)) + 1
-        elif mute == ConstMutes.Decremult:
-            muted /= (random.random() * (self.mult_range-1)) + 1
+    return max(bounds[0], min(bounds[1], val + rconst))
 
-        if low_clamp is not None:
-            muted = max(low_clamp, muted)
-        if high_clamp is not None:
-            muted = min(high_clamp, muted)
+def mutated_int_in_range(val, mute_prob, rand_bounds, enum_rel):
+    if random.random() > mute_prob:
+        return val
 
-        return muted
+    mute = weighted_choice(enum_rel)
+    if mute == EnumMutes.Increment:
+        return val + 1
+    elif mute == EnumMutes.Decrement:
+        return val - 1
+    else:
+        return random.randint(*rand_bounds)
 
-        
+
+def mutated_num(num, mute_prob, genome, clamps):
+    if random.random() > mute_prob:
+        return num
+
+    mute = weighted_choice(genome.mute_rates["const_rel"])
+    if mute == ConstMutes.Increment:
+        num += random.random() * genome.incr_range
+    elif mute == ConstMutes.Decrement:
+        num -= random.random() * genome.incr_range
+    elif mute == ConstMutes.Incremult: # Assumes mult_range >= 1
+        num *= (random.random() * (genome.mult_range-1)) + 1
+    elif mute == ConstMutes.Decremult:
+        num /= (random.random() * (genome.mult_range-1)) + 1
+
+    if clamps[0] is not None:
+        num = max(clamps[0], num)
+    if clamps[1] is not None:
+        num = min(clamps[1], num)
+
+    return num
+
+def mutated_intenum(curr, enum_type, mute_prob, enum_rel):
+    if random.random() > mute_prob:
+        return curr
+
+    mute = weighted_choice(enum_rel)
+    if mute == EnumMutes.Increment:
+        return enum_type((curr + 1) % len(enum_type))
+    elif mute == EnumMutes.Decrement:
+        return enum_type((curr - 1) % len(enum_type))
+    else:
+        return random.choice(list(enum_type))
+
+
+

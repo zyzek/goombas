@@ -50,10 +50,11 @@ REF_DELIMS = {RefType.Pure_Offset_Call: '[',
 class FTreeNode(object):
     """An internal node of a function tree; a binary operator with two children."""
 
-    def __init__(self, op, l, r):
+    def __init__(self, op, l, r, parent=None):
         self.operator = op
         self.left = l
         self.right = r
+        self.parent = parent
 
         if self.operator == Op.Add:
             self._evaluate_ = lambda l, r: l + r
@@ -77,15 +78,18 @@ class FTreeNode(object):
             self._evaluate_ = lambda l, r: 0
 
     @classmethod
-    def random(cls, max_depth, gen_len, const_bounds, leaf_weights):
+    def random(cls, max_depth, gen_len, const_bounds, leaf_weights, parent=None):
         if max_depth <= 1:
-            return FTreeLeaf.random(gen_len, const_bounds, leaf_weights)
+            return FTreeLeaf.random(gen_len, const_bounds, leaf_weights, parent)
 
         operator = random.choice(list(Op))
-        left = cls.random(random.randrange(max_depth-1), gen_len, const_bounds, leaf_weights)
-        right = cls.random(random.randrange(max_depth-1), gen_len, const_bounds, leaf_weights)
+        node = cls(operator, None, None, parent)
+        node.left = cls.random(random.randrange(max_depth-1),
+                               gen_len, const_bounds, leaf_weights, node)
+        node.right = cls.random(random.randrange(max_depth-1),
+                                gen_len, const_bounds, leaf_weights, node)
 
-        return cls(operator, left, right)
+        return node
 
     def is_leaf(self):
         return False
@@ -112,18 +116,18 @@ class FTreeNode(object):
 class FTreeLeaf(object):
     """Function tree leaf node containing a callable object returning an arbitrary value."""
 
-    def __init__(self, ref, ref_type, val):
+    def __init__(self, ref, ref_type, val, parent=None):
         self.ref = ref
         self.ref_type = ref_type
         self.val = val
+        self.parent = parent
 
     @classmethod
-    def init_const(cls, val):
-        return cls(None, RefType.Constant, val)
+    def init_const(cls, val, parent=None):
+        return cls(None, RefType.Constant, val, parent)
 
     @classmethod
-    def random(cls, gen_len, const_bounds, leaf_weights):
-        #ref_type = random.choice(list(RefType))
+    def random(cls, gen_len, const_bounds, leaf_weights, parent=None):
         ref_type = weighted_choice(leaf_weights)
 
         if ref_type == RefType.Pure_Offset_Call or ref_type == RefType.Impure_Offset_Call:
@@ -132,7 +136,7 @@ class FTreeLeaf(object):
             val = random.randrange(len(goomba.Sensor))
         else:
             val = (random.random() * (const_bounds[1]-const_bounds[0])) + const_bounds[0]
-        return cls(None, ref_type, val)
+        return cls(None, ref_type, val, parent)
 
 
     def is_leaf(self):
@@ -152,30 +156,28 @@ class FTreeLeaf(object):
     def copy(self):
         return FTreeLeaf(self.ref, self.ref_type, self.val)
 
-def parse_func(sequence):
+def parse_func(sequence, parent=None):
     curr_sym = sequence.pop(0)
     node = None
 
     if curr_sym in STRING_OPS:
         # binary operator
-
-        left = parse_func(sequence)
-        right = parse_func(sequence)
-
-        node = FTreeNode(STRING_OPS[curr_sym], left, right)
+        node = FTreeNode(STRING_OPS[curr_sym], None, None, parent)
+        node.left = parse_func(sequence, node)
+        node.right = parse_func(sequence, node)
 
     elif curr_sym[0] == REF_DELIMS[RefType.Pure_Offset_Call]:
         # offset gene no action
-        node = FTreeLeaf(None, RefType.Pure_Offset_Call, int(curr_sym[1:]))
+        node = FTreeLeaf(None, RefType.Pure_Offset_Call, int(curr_sym[1:]), parent)
     elif curr_sym[0] == REF_DELIMS[RefType.Impure_Offset_Call]:
         # offset gene with action
-        node = FTreeLeaf(None, RefType.Impure_Offset_Call, int(curr_sym[1:]))
+        node = FTreeLeaf(None, RefType.Impure_Offset_Call, int(curr_sym[1:]), parent)
     elif curr_sym[0] == REF_DELIMS[RefType.Poll_Sensor]:
         # poll sensor
-        node = FTreeLeaf(None, RefType.Poll_Sensor, int(curr_sym[1:]))
+        node = FTreeLeaf(None, RefType.Poll_Sensor, int(curr_sym[1:]), parent)
     else:
         # otherwise, assume a value
-        node = FTreeLeaf.init_const(float(curr_sym))
+        node = FTreeLeaf.init_const(float(curr_sym), parent)
 
     return node
 
