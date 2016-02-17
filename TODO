@@ -1,5 +1,9 @@
 !:
 Generational reproduction
+convert position to tuples
+Move all genome meta properties into a single meta dict
+Function for querying genome properties that returns them in the right format, int, length, blah
+  while leaving the underlying genetic information unchanged
 Make gene string/sequence/object terminology consistent
 Generally do a pass on variable naming
 Documentation pass

@@ -50,7 +50,7 @@
 """
 
 from collections import deque
-from random import randint, choice
+from random import randint, choice, random
 from enum import IntEnum
 from functree import RefType
 import world
@@ -129,32 +129,39 @@ class Count(IntEnum):
     Sucks = 6
     Thoughts = 7
     GenomeSize = 8
+    TilesCovered = 9
 
 
 class Goomba:
     """An autonomous robotic vacuum cleaner whose behaviour is genetically-determined."""
-    EXEC_STACK_SIZE = 10
+
+    # Keep this relatively low: if d is the execution stack size, L the gene queue size,
+    # a goomba performs O(L * d * 2^d) function calls -- note that exponential term.
+    EXEC_STACK_SIZE = 5
     NUM_INIT_FUNS = 30
     GENE_QUEUE_SIZE = 100
     MEM_SIZE = 200
 
     COUNT_VALUES = {Count.Dirt: 1000,
-                    Count.FwdMoves: -100,
-                    Count.BckwdMoves: -100,
+                    Count.FwdMoves: -10,
+                    Count.BckwdMoves: -10,
                     Count.Bumps: -50,
-                    Count.LeftTurns: -35,
-                    Count.RightTurns: -35,
-                    Count.Sucks: -50,
+                    Count.LeftTurns: -10,
+                    Count.RightTurns: -10,
+                    Count.Sucks: 20,
                     Count.Thoughts: -1, 
-                    Count.GenomeSize: -5}
+                    Count.GenomeSize: -5,
+                    Count.TilesCovered: 100}
 
     SHAPE = [(-0.1, 0.3),
              (0.1, 0.3),
              (0.3, -0.3),
              (-0.3, -0.3)]
 
-    def __init__(self, sequences, pos=None):
-        if not pos:
+    SUCK_FAIL_PROB = 0.25
+
+    def __init__(self, gen, pos=None):
+        if pos is None:
             self.pos = [0, 0]
         else:
             self.pos = pos
@@ -176,12 +183,20 @@ class Goomba:
         self.exec_depth = 0
         self.memory = deque([], Goomba.MEM_SIZE)
 
-        self.genome = genome.Genome(*sequences)
+        self.genome = gen
         self.express_genome()
         self.expr_order = list(range(len(self.genome)))
         
+        self.tiles_covered = set()
+
         self.counts = {k: 0 for k in list(Count)}
         self.counts[Count.GenomeSize] = self.genome.size()
+
+    @classmethod
+    def from_sequences(cls, sequences, pos=None):
+        gen = genome.Genome(*sequences)
+        return cls(gen, pos)
+
 
     def express_genome(self):
         """Hook up genome function references so that it can operate within an agent."""
@@ -213,7 +228,7 @@ class Goomba:
                 elif ref.ref_type == RefType.Impure_Offset_Call:
                     ref.ref = make_run_gene(ref.ref)
                 elif ref.ref_type == RefType.Poll_Sensor:
-                    sensor = Sensor(ref.val)
+                    sensor = Sensor(round(ref.val) % len(Sensor))
 
                     if sensor in sensor_funcs:
                         ref.ref = sensor_funcs[sensor]
@@ -369,6 +384,10 @@ class Goomba:
         else:
             self.counts[Count.Bumps] += 1
             self.sensors[Sensor.Bump] = 1
+
+        if tuple(self.pos) not in self.tiles_covered:
+            self.counts[Count.TilesCovered] += 1
+            self.tiles_covered.add(tuple(self.pos))
     
     def move_backward(self, wrld):
         """ Move an agent one tile in the anti-facing direction."""
@@ -391,7 +410,9 @@ class Goomba:
         tile_before = wrld.get_tile(x, y)
 
         if wrld.is_in_bounds(x, y) and (tile_before != world.Tile_State.boundary):
-            tile_after = choice(wrld.suck_distrib)
+            tile_after = world.Tile_State.clean
+            if random() < Goomba.SUCK_FAIL_PROB:
+                tile_after = world.Tile_State.dirty
 
             if (tile_before == world.Tile_State.clean) and \
                     (tile_after == world.Tile_State.dirty) and \
@@ -406,6 +427,9 @@ class Goomba:
                 self.counts[Count.Dirt] += 1
 
     def score(self):
+        if self.counts[Count.FwdMoves] + self.counts[Count.BckwdMoves] == 0:
+            return -9999999999999999999
+
         score = 0
 
         for count in list(Count):

@@ -42,7 +42,8 @@ metagenome, composed of floating point numbers, like <gene>
 
 import random
 from enum import IntEnum
-from functree import Op, FTreeNode, FTreeLeaf, RefType, parse_func, weighted_choice
+from functree import Op, FTreeNode, FTreeLeaf, RefType, parse_func
+from util import weighted_choice
 import goomba
 
 class GenomeMutes(IntEnum):
@@ -103,7 +104,7 @@ class Gene(object):
             mute = weighted_choice(genome.mute_rates["struct_rel"])
 
             if mute == StructMutes.SubTree:
-                new_node = FTreeNode.random(genome.fun_gen_depth,
+                new_node = FTreeNode.random(round(genome.fun_gen_depth),
                                             len(genome),
                                             genome.const_bounds,
                                             genome.mute_rates["leaf_rel"],
@@ -125,7 +126,7 @@ class Gene(object):
                 else:
                     node.parent.right = new_node
                 
-                new_child = FTreeNode.random(genome.fun_gen_depth,
+                new_child = FTreeNode.random(round(genome.fun_gen_depth),
                                              len(genome),
                                              genome.const_bounds,
                                              genome.mute_rates["leaf_rel"],
@@ -139,6 +140,11 @@ class Gene(object):
                     new_node.right = node
                     
             elif mute == StructMutes.Swap:
+                if isinstance(node, FTreeLeaf):
+                    if node.parent is not None:
+                        node = node.parent
+                    else:
+                        return
             # swap operands
                 tmp = node.left
                 node.left = node.right
@@ -186,6 +192,7 @@ class Gene(object):
         return Gene(self.action, self.function.copy())
 
 class Genome(object):
+
     META_INDICES = {"colors": [0, 12],
                     "fuzziness": [12, 13],
                     "const_bounds": [13, 15],
@@ -199,7 +206,7 @@ class Genome(object):
                     "leaf_type": [22, 23],
                     "genome_rel": [23, 28],
                     "const_rel": [28, 32],
-                    "leaf_rel": [32, 26],
+                    "leaf_rel": [32, 36],
                     "enum_rel": [36, 39],
                     "struct_rel": [39, 42]}
 
@@ -235,7 +242,6 @@ class Genome(object):
         self.mute_rates["struct_rel"] = dict(zip(list(StructMutes),
                                                  Genome.meta_item(meta_genes, "struct_rel")))
 
-
         # Now handle the behavioural genes
         gene_sequences = [s.strip().split() for s in sequence.split("|")]
         self.genes = [Gene(None, None) for _ in range(len(gene_sequences))]
@@ -251,10 +257,10 @@ class Genome(object):
 
     @classmethod
     def random_coding(cls, meta, length):
-        meta_nums = [float(g) for g in meta.strip.split()]
+        meta_nums = [float(g) for g in meta.strip().split()]
 
         const_bounds = Genome.meta_item(meta_nums, "const_bounds")
-        leaf_rel = Genome.meta_item(meta_nums, "leaf_rel")
+        leaf_rel = dict(zip(list(RefType), Genome.meta_item(meta_nums, "leaf_rel")))
         fun_gen_depth = Genome.meta_item(meta_nums, "fun_gen_depth")
 
         genes = [Gene.random(fun_gen_depth, length, const_bounds, leaf_rel) \
@@ -280,6 +286,13 @@ class Genome(object):
         metastr = ""
         for col in self.colors:
             metastr += " ".join(str(c) for c in col[:3]) + " "
+
+        metastr += str(self.fuzziness) + " "
+        metastr += str(self.const_bounds[0]) + " "
+        metastr += str(self.const_bounds[1]) + " "
+        metastr += str(self.fun_gen_depth) + " "
+        metastr += str(self.incr_range) + " "
+        metastr += str(self.mult_range) + " "
         
         for key in ["mute", "genome", "gene_action", "struct_mod", "leaf_type"]:
             metastr += str(self.mute_rates[key]) + " "
@@ -287,7 +300,7 @@ class Genome(object):
         for key in ["genome_rel", "const_rel", "leaf_rel", "enum_rel", "struct_rel"]:
             metastr += " ".join(str(v) for v in self.mute_rates[key].values()) + " "
 
-        mainstr = " | ".join(str(gene) for gene in self.genes)
+        mainstr = " | ".join(str(gene) for gene in self.genes).strip()
 
         return [metastr, mainstr]
 
@@ -386,7 +399,7 @@ class Genome(object):
                                            self,
                                            [None, None])
         if self.const_bounds[0] > self.const_bounds[1]:
-            self.const_bounds = reversed(self.const_bounds)
+            self.const_bounds = self.const_bounds[::-1]
 
         # fun gen depth [0.0, 5.0]
         self.fun_gen_depth = mutated_by_factor(self.fun_gen_depth,

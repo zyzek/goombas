@@ -19,12 +19,13 @@ def main():
                             ("incr_range", "5.0"),
                             ("mult_range", "2.0")])
     muterates = OrderedDict([("mute", "0.1"),
-                             ("genome", "0.1"),
-                             ("gene_action", "0.3"),
+                             ("genome", "0.2"),
+                             ("gene_action", "0.5"),
                              ("struct_mod", "0.5"),
                              ("leaf_type", "0.3"),
-                             ("genome_rel", "1 1 1 1 1"),
+                             ("genome_rel", "2 1 1 1 2"),
                              ("const_rel", "1 1 1 1"),
+                             ("leaf_rel", "1 1 4 4"),
                              ("enum_rel", "1 1 1"),
                              ("struct_rel", "1 1 1")])
 
@@ -50,11 +51,14 @@ def main():
     bredgen = genome.Genome(*genome.cross_genome_sequences((meta2, gen), (meta1, gen)))
     bredgen.mutate()
     
+    gen2 = [genome.Genome(*genome.cross_genome_sequences((meta2, gen), (meta1, gen))) for _ in range(10)]
+    for g in gen2:
+        g.mutate()
+    gen2 = [g.sequences() for g in gen2]
 
-    wrld = world.World(40, 40, [bredgen.sequences()])
-    for goom in wrld.goombas:
-        print(goom.genome.sequences())
-        print([str(gene.function) for gene in goom.genome.genes])
+    #wrld = world.World(40, 40, [bredgen.sequences()])
+    #wrld = world.World.random_goombas(40, 40, 10, meta1, [3, 10])
+    wrld = world.World(50, 50, gen2, meta1, [3, 10])
     print("Generated World")
 
     canv = display.get_canvas(wrld)

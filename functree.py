@@ -1,8 +1,10 @@
 """Function trees representing arithmetic expressions."""
 
 import random
+from math import isinf
 from enum import IntEnum
 import goomba
+from util import weighted_choice
 
 class Op(IntEnum):
     """An enumeration of possible function tree operators."""
@@ -98,9 +100,11 @@ class FTreeNode(object):
         lres = self.left()
         rres = self.right()
         try:
-            return self._evaluate_(lres, rres)
+            retval = self._evaluate_(lres, rres)
+            if isinf(retval):
+                return 0
+            return retval
         except Exception as e:
-            print(e)
             return 0
 
 
@@ -186,27 +190,3 @@ def parse_func(sequence, parent=None):
         node = FTreeLeaf.init_const(float(curr_sym), parent)
 
     return node
-
-
-def weighted_choice(weighted_items):
-    """Take a dict mapping items to weights, return a weighted random choice of the objects."""
-    total = 0
-    cume_list = []
-
-    for item, weight in weighted_items.items():
-        total += weight
-        cume_list.append([item, total])
-
-    for pair in cume_list:
-        pair[1] /= total
-
-    rand = random.random()
-
-    for item, val in cume_list:
-        if rand < val:
-            return item
-    
-    return None
-
-
-

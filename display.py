@@ -116,6 +116,7 @@ class Canvas(app.Canvas):
         self.update_goombas()
         
         self.goomba_program["a_position"] = self.goomba_verts
+        self.goomba_program["a_color"] = self.goomba_colors
 
         gloo.clear()
         self.boundary_program["u_color"] = self.b_int_col
