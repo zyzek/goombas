@@ -186,31 +186,54 @@ class Gene(object):
         return Gene(self.action, self.function.copy())
 
 class Genome(object):
+    META_INDICES = {"colors": [0, 12],
+                    "fuzziness": [12, 13],
+                    "const_bounds": [13, 15],
+                    "fun_gen_depth": [15, 16],
+                    "incr_range": [16, 17],
+                    "mult_range": [17, 18],
+                    "mute": [18, 19],
+                    "genome": [19, 20],
+                    "gene_action": [20, 21],
+                    "struct_mod": [21, 22],
+                    "leaf_type": [22, 23],
+                    "genome_rel": [23, 28],
+                    "const_rel": [28, 32],
+                    "leaf_rel": [32, 26],
+                    "enum_rel": [36, 39],
+                    "struct_rel": [39, 42]}
+
+
     def __init__(self, meta, sequence):
 
         # Set up first the metagenome
         meta_genes = [float(g) for g in meta.strip().split()]
-        
-        self.colors = [meta_genes[i:i+3] + [1.0] for i in range(0, 11, 3)]
-        
-        self.fuzziness = meta_genes[12]
-        self.const_bounds = [meta_genes[13], meta_genes[14]]
-        self.fun_gen_depth = meta_genes[15]
-        self.incr_range = meta_genes[16]
-        self.mult_range = meta_genes[17]
-        
+
+        self.colors = [meta_genes[i:i+3] + [1.0] for i in range(*Genome.META_INDICES["colors"], 3)]
+
+        self.fuzziness = Genome.meta_item(meta_genes, "fuzziness")
+        self.const_bounds = Genome.meta_item(meta_genes, "const_bounds")
+        self.fun_gen_depth = Genome.meta_item(meta_genes, "fun_gen_depth")
+        self.incr_range = Genome.meta_item(meta_genes, "incr_range")
+        self.mult_range = Genome.meta_item(meta_genes, "mult_range")
+
         self.mute_rates = {}
-        self.mute_rates["mute"] = meta_genes[18]
-        self.mute_rates["genome"] = meta_genes[19]
-        self.mute_rates["gene_action"] = meta_genes[20]
-        self.mute_rates["struct_mod"] = meta_genes[21]
-        self.mute_rates["leaf_type"] = meta_genes[22]
-        
-        self.mute_rates["genome_rel"] = dict(zip(list(GenomeMutes), meta_genes[23:28]))
-        self.mute_rates["const_rel"] = dict(zip(list(ConstMutes), meta_genes[28:32]))
-        self.mute_rates["leaf_rel"] = dict(zip(list(RefType), meta_genes[32:36]))
-        self.mute_rates["enum_rel"] = dict(zip(list(EnumMutes), meta_genes[36:39]))
-        self.mute_rates["struct_rel"] = dict(zip(list(StructMutes), meta_genes[39:42]))
+        self.mute_rates["mute"] = Genome.meta_item(meta_genes, "mute")
+        self.mute_rates["genome"] = Genome.meta_item(meta_genes, "genome")
+        self.mute_rates["gene_action"] = Genome.meta_item(meta_genes, "gene_action")
+        self.mute_rates["struct_mod"] = Genome.meta_item(meta_genes, "struct_mod")
+        self.mute_rates["leaf_type"] = Genome.meta_item(meta_genes, "leaf_type")
+
+        self.mute_rates["genome_rel"] = dict(zip(list(GenomeMutes),
+                                                 Genome.meta_item(meta_genes, "genome_rel")))
+        self.mute_rates["const_rel"] = dict(zip(list(ConstMutes),
+                                                Genome.meta_item(meta_genes, "const_rel")))
+        self.mute_rates["leaf_rel"] = dict(zip(list(RefType),
+                                               Genome.meta_item(meta_genes, "leaf_rel")))
+        self.mute_rates["enum_rel"] = dict(zip(list(EnumMutes),
+                                               Genome.meta_item(meta_genes, "enum_rel")))
+        self.mute_rates["struct_rel"] = dict(zip(list(StructMutes),
+                                                 Genome.meta_item(meta_genes, "struct_rel")))
 
 
         # Now handle the behavioural genes
@@ -225,6 +248,33 @@ class Genome(object):
             self.genes[i].function = func
 
         self.link()
+
+    @classmethod
+    def random_coding(cls, meta, length):
+        meta_nums = [float(g) for g in meta.strip.split()]
+
+        const_bounds = Genome.meta_item(meta_nums, "const_bounds")
+        leaf_rel = Genome.meta_item(meta_nums, "leaf_rel")
+        fun_gen_depth = Genome.meta_item(meta_nums, "fun_gen_depth")
+
+        genes = [Gene.random(fun_gen_depth, length, const_bounds, leaf_rel) \
+                 for _ in range(length)]
+
+        g_string = " | ".join(str(gene) for gene in genes)
+
+        return cls(meta, g_string)
+
+    @classmethod
+    def meta_item(cls, meta_sequence, name):
+        start, stop = Genome.META_INDICES[name]
+        item = meta_sequence[start:stop]
+
+        if len(item) == 1:
+            return item[0]
+
+        return item
+
+    
     
     def sequences(self):
         metastr = ""

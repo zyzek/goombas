@@ -1,4 +1,3 @@
-
 import numpy as np
 from vispy import app, gloo
 from world import Tile_State

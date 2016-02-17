@@ -28,10 +28,9 @@ def main():
                              ("enum_rel", "1 1 1"),
                              ("struct_rel", "1 1 1")])
 
-    #meta = "1.0  -5.0 5.0  3  5.0 2.0   0.3 0.8 0.8  0.3 0.8 0.8  0.8 0.3 0.8  0.8 0.3 0.8 " \
-    #       "0.1  0.1  1 1 1 1 1  1 1 1 1  1 1 2 2"
-
-    meta = " ".join(metadesc.values()) + " " + " ".join(muterates.values())
+    meta1 = " ".join(metadesc.values()) + " " + " ".join(muterates.values())
+    metadesc["colors"] = "1.0 0.0 0.0  1.0 0.0 0.0  1.0 0.0 0.0  1.0 0.0 0.0"
+    meta2 = " ".join(metadesc.values()) + " " + " ".join(muterates.values())
     gen = " 12 + 1 $10 | 4 * = 0 % $10 23 * 100 $1 | " \
              " 5 * 100 $2 | " \
              " 4 * 90 $4 | 3 * 90 $3 | 1 * 100 $5 | " \
@@ -44,34 +43,17 @@ def main():
             # Baseline instinct to move forward
 
 
-
     #gen = " | 1 1 | 3 * 2 $0 | 4 * 3 $1 | 5 * 4 $2 | 12 + 1 $10 | 5 * = 0 % $10 7 * 100 $1"
 
-    """gen = " | 1 1 | 3 * 2 $0 | 4 * 3 $1 | 12 + 1 $10 | 5 * = 0 % $10 7 * 100 $1"
-    seq = "1.0 | 0.3 0.8 0.8  0.3 0.8 0.8  0.8 0.3 0.8  0.8 0.3 0.8" + gen
-    
-    gen2 = " | 12 + 1 $10 | 1 * 10 = 0 % $10 10 | 6 5 | 3 * 15 $0 | 5 * 25 $2" \
-            " | 4 * = 0 % $10 43 * 15 $1 | 4 * 40 $3 | 3 * 40 $3"
-    seq2 = "1.0 | 1.0 1.0 1.0  1.0 1.0 1.0  1.0 1.0 1.0  1.0 1.0 1.0" + gen2
-
-    sense = "1.0 | 0.3 0.8 0.8  0.3 0.8 0.8  0.8 0.3 0.8  0.8 0.3 0.8 | 1 $0 " \
-            "| 1 $1 | 1 $2 | 1 $3 | 1 $4 | 1 $5 | 1 $6 | 1 $7 | 1 $8 | 1 $9 | 1 $10"
-
-    seeker = "1.0 | 1.0 1.0 1.0  1.0 1.0 1.0  1.0 1.0 1.0  1.0 1.0 1.0 | " \
-             " 12 + 1 $10 | 4 * = 0 % $10 23 * 100 $1 | " \
-             " 5 * 100 $2 | " \
-             " 4 * 90 $4 | 3 * 90 $3 | 1 * 100 $5 | " \
-             " 3 * * 80 $1 $0 | 4 * * 80 $1 - 1 $0 | " \
-             " 1 20 " 
-    """
 
     print("Generated Goombas")
-    bredgen = genome.Genome(*genome.cross_genome_sequences((meta, gen), (meta, gen)))
+    bredgen = genome.Genome(*genome.cross_genome_sequences((meta2, gen), (meta1, gen)))
     bredgen.mutate()
     
 
-    wrld = world.World(50, 50, [bredgen.sequences()]) #[(meta, gen)]*10)
+    wrld = world.World(40, 40, [bredgen.sequences()])
     for goom in wrld.goombas:
+        print(goom.genome.sequences())
         print([str(gene.function) for gene in goom.genome.genes])
     print("Generated World")
 

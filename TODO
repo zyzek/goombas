@@ -1,5 +1,16 @@
 !:
 Generational reproduction
+Make gene string/sequence/object terminology consistent
+Generally do a pass on variable naming
+Documentation pass
+Diagnostic information:
+    specific goomba information (selectable goombas)
+    current population info
+    gene frequencies
+    species data
+    goomba lineages
+No display mode (for faster computation)
+    
 
 ?:
 Olfactory landscape
