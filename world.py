@@ -40,8 +40,17 @@ class World:
             self.state[0][j] = Tile_State.boundary
             self.state[w-1][j] = Tile_State.boundary
 
+        self.init_dirt_distrib = []
+
+        for y in range(self.height):
+            for x in range(self.width):
+                if self.state[x][y] == Tile_State.dirty:
+                    self.init_dirt_distrib.append((x, y))
+
+
         starts = self.start_locations(len(goomba_genomes))
         self.goombas = [Goomba.from_sequences(s, p) for s, p in zip(goomba_genomes, starts)]
+        self.top_five = self.goombas[:5]
         self.running = True
 
     @classmethod
@@ -58,6 +67,10 @@ class World:
                     poss_starts.append([x, y])
 
         return sample(poss_starts, num_starts)
+
+    def reset_dirt(self):
+        for x, y in self.init_dirt_distrib:
+            self.state[x][y] = Tile_State.dirty
  
     def set_tile(self, x, y, v):
         if self.is_in_bounds(x, y):
@@ -89,15 +102,26 @@ class World:
     def next_gen(self):
         self.running = False
         print("Generation " + str(self.generation))
+        newtops = list(self.top_five)
         for goomba in self.goombas:
-            print(goomba.genome.sequences())
-            print(goomba.counts)
-            print(goomba.score())
+            for champ in self.top_five:
+                if goomba.score() > champ.score():
+                    newtops.append(goomba)
+                    break
+        
+        newtops = sorted(newtops, key = lambda goomba: goomba.score(), reverse=True)
+        self.top_five = newtops[:5]
+
+        for champ in self.top_five:
+            print(champ.genome.sequences())
+            print(champ.counts)
+            print(champ.score())
             print()
 
         self.breed_pop()
         self.steps = 0
         self.generation += 1
+        self.reset_dirt()
         self.running = True
            
     def breed_pop(self):

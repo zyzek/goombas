@@ -149,7 +149,7 @@ class Goomba:
                     Count.LeftTurns: -10,
                     Count.RightTurns: -10,
                     Count.Sucks: 20,
-                    Count.Thoughts: -1, 
+                    Count.Thoughts: -0.1, 
                     Count.GenomeSize: -5,
                     Count.TilesCovered: 100}
 

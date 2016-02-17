@@ -47,26 +47,22 @@ def main():
     #gen = " | 1 1 | 3 * 2 $0 | 4 * 3 $1 | 5 * 4 $2 | 12 + 1 $10 | 5 * = 0 % $10 7 * 100 $1"
 
 
-    print("Generated Goombas")
-    bredgen = genome.Genome(*genome.cross_genome_sequences((meta2, gen), (meta1, gen)))
-    bredgen.mutate()
-    
-    gen2 = [genome.Genome(*genome.cross_genome_sequences((meta2, gen), (meta1, gen))) for _ in range(10)]
+    print("Generating Goombas")
+    gen2 = [genome.Genome(*genome.cross_genome_sequences((meta2, gen), (meta1, gen))) for _ in range(30)]
     for g in gen2:
         g.mutate()
     gen2 = [g.sequences() for g in gen2]
-
-    #wrld = world.World(40, 40, [bredgen.sequences()])
+   
+    
+    print("Building World")
     #wrld = world.World.random_goombas(40, 40, 10, meta1, [3, 10])
-    wrld = world.World(50, 50, gen2, meta1, [3, 10])
-    print("Generated World")
-
+    wrld = world.World(100, 100, gen2, meta1, [3, 10], 1000)
+	
+    print("Constructing geometry (can take a bit because I'm a retard)")
     canv = display.get_canvas(wrld)
     canv.title = "Genetic Roombas!"
-    print("Generated Canvas")
 
     canv.show()
-
     app.run()
 
 
