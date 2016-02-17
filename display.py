@@ -1,6 +1,6 @@
 import numpy as np
 from vispy import app, gloo
-from world import Tile_State
+from world import TileState
 from goomba import Goomba
 
 CANVAS = None 
@@ -145,7 +145,7 @@ class Canvas(app.Canvas):
         for y in range(len(world.state)):
             for x in range(len(world.state[y])):
                 dirty_verts.append((x + dirty_offset, y + dirty_offset))
-                if world.get_tile(x, y) == Tile_State.boundary:
+                if world.get_tile(x, y) == TileState.Boundary:
                     boundaries.append((x, y))
 
         #generate vert list for corners of boundaries
@@ -192,13 +192,13 @@ class Canvas(app.Canvas):
             boundary_interior.extend([xy, xy1, x1y, x1y, xy1, x1y1])
 
             # boundary outlines: edges of boundary tiles abutting non-boundary tiles
-            if world.get_tile(x - 1, y) != Tile_State.boundary:
+            if world.get_tile(x - 1, y) != TileState.Boundary:
                 boundary_outline.extend([xy, xy1])
-            if world.get_tile(x + 1, y) != Tile_State.boundary:
+            if world.get_tile(x + 1, y) != TileState.Boundary:
                 boundary_outline.extend([x1y, x1y1])
-            if world.get_tile(x, y - 1) != Tile_State.boundary:
+            if world.get_tile(x, y - 1) != TileState.Boundary:
                 boundary_outline.extend([xy, x1y])
-            if world.get_tile(x, y + 1) != Tile_State.boundary:
+            if world.get_tile(x, y + 1) != TileState.Boundary:
                 boundary_outline.extend([xy1, x1y1])
 
             self.boundary_verts = gloo.VertexBuffer(np.array(boundary_verts, np.float32))
@@ -220,7 +220,7 @@ class Canvas(app.Canvas):
 
         for y in range(h):
             for x in range(w):
-                if self.world.get_tile(x, y) == Tile_State.dirty:
+                if self.world.get_tile(x, y) == TileState.Dirty:
                     dirty_coords.append(x + y*w)
 
         self.dirty_indices = gloo.IndexBuffer(np.array(dirty_coords, np.uint32))
@@ -245,12 +245,12 @@ class Canvas(app.Canvas):
         self.goomba_colors = np.array(colors, np.float32)
 
 def rotated(point, rotation):
-    if rotation == [0, 1]:
+    if rotation == (0, 1):
         return point
-    elif rotation == [0, -1]:
-        return [-point[0], -point[1]]
-    elif rotation == [1, 0]:
-        return [point[1], -point[0]]
+    elif rotation == (0, -1):
+        return (-point[0], -point[1])
+    elif rotation == (1, 0):
+        return (point[1], -point[0])
     else:
-        return [-point[1], point[0]]
+        return (-point[1], point[0])
 

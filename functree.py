@@ -1,4 +1,6 @@
-"""Function trees representing arithmetic expressions."""
+"""Function trees representing arithmetic expressions.
+
+See genome.py for explanations of how these work."""
 
 import random
 from math import isinf
@@ -7,7 +9,7 @@ import goomba
 from util import weighted_choice
 
 class Op(IntEnum):
-    """An enumeration of possible function tree operators."""
+    """Possible function tree operators."""
     Add = 0
     Sub = 1
     Mul = 2

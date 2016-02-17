@@ -1,3 +1,4 @@
+"""Utilities that belong nowhere else."""
 from random import random
 
 def weighted_choice(weighted_items, num_items=1):
@@ -13,7 +14,7 @@ def weighted_choice(weighted_items, num_items=1):
         pair[1] /= total
 
     items = []
-    
+
     for _ in range(num_items):
         rand = random()
 
@@ -21,11 +22,10 @@ def weighted_choice(weighted_items, num_items=1):
             if rand <= val:
                 items.append(item)
                 break
-    
+
     assert num_items == len(items), (weighted_items, items)
 
     if num_items == 1:
         return items[0]
-    
 
     return items

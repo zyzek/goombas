@@ -36,7 +36,7 @@ def main():
              " 5 * 100 $2 | " \
              " 4 * 90 $4 | 3 * 90 $3 | 1 * 100 $5 | " \
              " 3 * * 80 $1 $0 | 4 * * 80 $1 - 1 $0 | " \
-             " 1 20 " 
+             " 1 20 "
             # Increment state per step, random turn
             # Suck up stuff if it's present underneath bot
             # Turn towards food
@@ -48,22 +48,26 @@ def main():
 
 
     print("Generating Goombas")
-    gen2 = [genome.Genome(*genome.cross_genome_sequences((meta2, gen), (meta1, gen))) for _ in range(30)]
-    for g in gen2:
-        g.mutate()
+    gen2 = [genome.Genome(*genome.cross_genome_sequences((meta2, gen), (meta1, gen))) \
+            for _ in range(30)]
+    for gen in gen2:
+        gen.mutate()
     gen2 = [g.sequences() for g in gen2]
-   
-    
+
+
     print("Building World")
     #wrld = world.World.random_goombas(40, 40, 10, meta1, [3, 10])
-    wrld = world.World(100, 100, gen2, meta1, [3, 10], 1000)
-	
-    print("Constructing geometry (can take a bit because I'm a retard)")
-    canv = display.get_canvas(wrld)
-    canv.title = "Genetic Roombas!"
+    wrld = world.World((100, 100), gen2, meta1, [3, 10], 1000)
 
-    canv.show()
-    app.run()
+    print("Constructing geometry (can take a bit because I'm a retard)")
+    #canv = display.get_canvas(wrld)
+    #canv.title = "Genetic Roombas!"
+
+    #canv.show()
+    #app.run()
+
+    while True:
+        wrld.step()
 
 
 if __name__ == "__main__":

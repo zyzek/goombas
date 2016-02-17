@@ -4,49 +4,76 @@
 
     Agent:  A robotic vacuum cleaner which must suck up dirt.
             Sensors:
-                Current position and orientation: robot always knows its absolute coordinates.
-                Current tile: robot can tell if the current tile is clean or dirty.
-                Bump: active if the last move tried to go through a boundary
-                Random: returns either 0 or 1 randomly
+                An agent has a variety of sensors whose state it may interrogate on a given step.
+                Specific sensor behaviour is detailed in the Sensor class.
 
-            Actuators:
-                Move: the vacuum can move forward one tile in the direction it is facing,
-                      but not onto a boundary.
-                Rotate: the vacuum may rotate either left or right a quarter turn
-                Suck: the vacuum can suck up dirt, but it has a 25% chance of dirtying any tile
-                      that it sucks on.
+            Actions:
+                An action is anything an agent can do. Note there is a distinction between
+                effectful and mental actions. An agent performs exactly one effectful action
+                per turn. However, while an agent is calculating its next move, it may perform many
+                mental actions.
+                Specific actions are documented in the Action class.
+
+            Genome:
+                Meta region:    encodes information about colour, mutation rates,
+                                relative frequencies of various objects; anything which does not
+                                directly code for behaviour.
+
+                Coding region:  this is composed of a sequence of genes. Each gene is an action
+                                code followed by an arithmetic function in polish notation.
+
+                                These functions take the form of binary trees when expressed in
+                                an agent.
+                                The internal nodes of such a tree are binary arithmetic operators,
+                                and the leaf nodes may take any of four types: constant, sensor
+                                pure offset call, impure offset call.
+
+                                Constant leaves simply contain a value which they return when
+                                evaluated.
+                                Sensor leaves return the value of any one of the agent's available
+                                sensors when evaluated.
+                                Pure offset calls evaluate the function inside the gene n places
+                                along the genome (modulo the genome length), and return its value.
+                                Impure offset calls are the same as pure offset calls, but they
+                                also perform the action associated with the appropriate gene.
+
             Mind:
-                State:  an integer representing the current state of the vacuum
+                State:  a number a goombas may read and write, representing its current state.
+
                 Memory: a robot possesses a stack of values it can push, pop, peek.
                         Top value is zero if empty.
-                Program: The robot has a queue of functions to compute on a given turn,
-                         top n executed, highest weight action from summation of said functions
-                         is executed.
-                Also: execution stack to prevent loops,
-                Also: genetic activation/promotion
 
-                Actions:
-                    Move Forwards, Move backwards
-                    Turn Left, Turn Right
-                    Suck,
-                    Nop,
-                    Call Function +val places forward in the genome
-                    Promote Function +val places forward in the genome
-                    Demote Function +val places forward in the genome
+                Order:  the genes in the coding region have a natural execution order, which is
+                        the order in which they appear in the coding region.
+                        They initially fire in this order, but the robot may promote or demote
+                        genes in the hierarchy to manipulate subsequent gene expression.
 
-    Perf:   The robot is given a period of time to traverse the world, and its final score is:
-            10 * (net dirt sucked up)
-            - (actions performed (anything other than Nop))
-            - (computations performed) / 100
-            - 100 * (1 - (genome size / largest genome))
+                Queue:  a robot has a queue of genes it executes in sequence during a given turn.
+                        The queue is initially populated from the first n genes in the gene order,
+                        but there is extra space it may fill by performing the call action,
+                        which appends new items to the queue, until it fills up.
+                        Note that if there are more than n coding genes, the remaining ones must
+                        be executed by recursive or action calls.
 
-            In other words, a bot is rewarded for sucking up a lot of dirt,
-            for not wasting energy moving around,
-            for being computationally efficient,
-            for having a small genome
+                Intent: The robot has a mapping from effectful actions to numbers. Whenever a
+                        gene's action code refers to an effectful action, its function is evaluated
+                        and the result is added to the total for that action in the map.
+                        The action that the robot actually performs is that with the highest
+                        weight in the map once all genes in the queue have been executed.
+                        If a gene's action code refers to a mental action, there is no direct
+                        contribution to any weight, but the corresponding action is performed
+                        immediately.
 
-    Todo: work out how to go to a particular state or offset, how to handle coordinates,
-          how to deal with gene regulation.
+                Stack: when any offset call is performed in a function, the call is pushed to
+                       the execution stack unless the max recursion depth would be exceeded,
+                       returning 0 instead.
+                       This ensures that infinite loops cannot occur.
+    Performance:
+            An agent is given some time to traverse the world.
+            It is rewarded for sucking up dirt, and for each unique square it traverses.
+            Other actions are disincentivised to varying degrees on the principle that
+            they cost energy.
+            Additionally, there is a mild encouragement towards a smaller genome.
 """
 
 from collections import deque
@@ -120,6 +147,7 @@ class Sensor(IntEnum):
     Mem = 11
 
 class Count(IntEnum):
+    """The values tracked for an agent, which contribute to fitness."""
     Dirt = 0
     FwdMoves = 1
     BckwdMoves = 2
@@ -142,6 +170,7 @@ class Goomba:
     GENE_QUEUE_SIZE = 100
     MEM_SIZE = 200
 
+    # The scores used to calculate a goomba's fitness.
     COUNT_VALUES = {Count.Dirt: 1000,
                     Count.FwdMoves: -10,
                     Count.BckwdMoves: -10,
@@ -149,10 +178,11 @@ class Goomba:
                     Count.LeftTurns: -10,
                     Count.RightTurns: -10,
                     Count.Sucks: 20,
-                    Count.Thoughts: -0.1, 
+                    Count.Thoughts: -0.1,
                     Count.GenomeSize: -5,
                     Count.TilesCovered: 100}
 
+    # The shape used to display a goomba graphically.
     SHAPE = [(-0.1, 0.3),
              (0.1, 0.3),
              (0.3, -0.3),
@@ -162,11 +192,11 @@ class Goomba:
 
     def __init__(self, gen, pos=None):
         if pos is None:
-            self.pos = [0, 0]
+            self.pos = (0, 0)
         else:
             self.pos = pos
 
-        self.ori = choice([[1, 0], [-1, 0], [0, 1], [0, -1]])
+        self.ori = choice([(1, 0), (-1, 0), (0, 1), (0, -1)])
 
         self.sensors = {Sensor.Tile: 0,
                         Sensor.Bump: 0,
@@ -186,21 +216,21 @@ class Goomba:
         self.genome = gen
         self.express_genome()
         self.expr_order = list(range(len(self.genome)))
-        
-        self.tiles_covered = set()
 
+        self.tiles_covered = set()
         self.counts = {k: 0 for k in list(Count)}
         self.counts[Count.GenomeSize] = self.genome.size()
 
     @classmethod
     def from_sequences(cls, sequences, pos=None):
+        """Construct a Goomba from a genome sequence pair."""
         gen = genome.Genome(*sequences)
         return cls(gen, pos)
 
 
     def express_genome(self):
         """Hook up genome function references so that it can operate within an agent."""
-        
+
         def make_run_func(ref):
             return lambda: self.run_func(ref)
         def make_run_gene(ref):
@@ -308,9 +338,9 @@ class Goomba:
         self.sensors[Sensor.Tile] = wrld.get_tile(*self.pos)
         self.sensors[Sensor.Rand] = randint(0, 1)
 
-        fcoord = [self.pos[0]+self.ori[0], self.pos[1]+self.ori[1]]
-        lcoord = [self.pos[0]-self.ori[1], self.pos[1]+self.ori[0]]
-        rcoord = [self.pos[0]+self.ori[1], self.pos[1]-self.ori[0]]
+        fcoord = (self.pos[0]+self.ori[0], self.pos[1]+self.ori[1])
+        lcoord = (self.pos[0]-self.ori[1], self.pos[1]+self.ori[0])
+        rcoord = (self.pos[0]+self.ori[1], self.pos[1]-self.ori[0])
 
         self.sensors[Sensor.Front] = wrld.get_tile(*fcoord)
         self.sensors[Sensor.Left] = wrld.get_tile(*lcoord)
@@ -350,6 +380,7 @@ class Goomba:
 
 
     def perform_action(self, wrld):
+        """Perform whatever action the goomba has decided upon: apply its effects to the world."""
         action = self.intent
 
         self.sensors[Sensor.Bump] = 0
@@ -367,32 +398,32 @@ class Goomba:
 
     def turn_left(self):
         """Rotate an agent anti-clockwise a quarter-turn."""
-        self.ori = [-self.ori[1], self.ori[0]]
+        self.ori = (-self.ori[1], self.ori[0])
         self.counts[Count.LeftTurns] += 1
 
     def turn_right(self):
         """Rotate an agent clockwise a quarter-turn."""
-        self.ori = [self.ori[1], -self.ori[0]]
+        self.ori = (self.ori[1], -self.ori[0])
         self.counts[Count.RightTurns] += 1
 
     def move_forward(self, wrld):
         """ Move an agent one tile in the anti-facing direction."""
-        newpos = [p+o for p, o in zip(self.pos, self.ori)]
-        if wrld.is_in_bounds(*newpos) and wrld.get_tile(*newpos) != world.Tile_State.boundary:
+        newpos = tuple(p+o for p, o in zip(self.pos, self.ori))
+        if wrld.is_in_bounds(*newpos) and wrld.get_tile(*newpos) != world.TileState.Boundary:
             self.pos = newpos
             self.counts[Count.FwdMoves] += 1
         else:
             self.counts[Count.Bumps] += 1
             self.sensors[Sensor.Bump] = 1
 
-        if tuple(self.pos) not in self.tiles_covered:
+        if self.pos not in self.tiles_covered:
             self.counts[Count.TilesCovered] += 1
-            self.tiles_covered.add(tuple(self.pos))
-    
+            self.tiles_covered.add(self.pos)
+
     def move_backward(self, wrld):
         """ Move an agent one tile in the anti-facing direction."""
-        newpos = [p-o for p, o in zip(self.pos, self.ori)]
-        if wrld.is_in_bounds(*newpos) and wrld.get_tile(*newpos) != world.Tile_State.boundary:
+        newpos = tuple(p-o for p, o in zip(self.pos, self.ori))
+        if wrld.is_in_bounds(*newpos) and wrld.get_tile(*newpos) != world.TileState.Boundary:
             self.pos = newpos
             self.counts[Count.BckwdMoves] += 1
         else:
@@ -409,39 +440,40 @@ class Goomba:
         x, y = self.pos
         tile_before = wrld.get_tile(x, y)
 
-        if wrld.is_in_bounds(x, y) and (tile_before != world.Tile_State.boundary):
-            tile_after = world.Tile_State.clean
+        if wrld.is_in_bounds(x, y) and (tile_before != world.TileState.Boundary):
+            tile_after = world.TileState.Clean
             if random() < Goomba.SUCK_FAIL_PROB:
-                tile_after = world.Tile_State.dirty
+                tile_after = world.TileState.Dirty
 
-            if (tile_before == world.Tile_State.clean) and \
-                    (tile_after == world.Tile_State.dirty) and \
+            if (tile_before == world.TileState.Clean) and \
+                    (tile_after == world.TileState.Dirty) and \
                self.counts[Count.Dirt] > 0:
 
                 wrld.set_tile(x, y, tile_after)
                 self.counts[Count.Dirt] -= 1
-            
-            elif (tile_before == world.Tile_State.dirty) and \
-                 (tile_after == world.Tile_State.clean):
+
+            elif (tile_before == world.TileState.Dirty) and \
+                 (tile_after == world.TileState.Clean):
                 wrld.set_tile(x, y, tile_after)
                 self.counts[Count.Dirt] += 1
 
     def score(self):
+        """Determine the fitness score for this goomba."""
+
+        # Motionless goombas are useless.
         if self.counts[Count.FwdMoves] + self.counts[Count.BckwdMoves] == 0:
             return -9999999999999999999
 
         score = 0
-
         for count in list(Count):
             score += self.counts[count]*Goomba.COUNT_VALUES[count]
-
         return score
 
 
-
 def breed(mum, dad):
+    """Take two goombas and return the result of crossing them."""
     new_genome = genome.cross_genomes(mum.genome, dad.genome)
     new_genome.mutate()
     return Goomba(new_genome)
-    
+
 

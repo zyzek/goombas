@@ -1,44 +1,91 @@
 """
-A Genome is a sequence of genes each of which is first a number determining
-what action the gene contributes to, followed by an arithmetic expression in
-polish notation, whose operators include:
-    + - / * ^ < > =
-Leaf nodes in the arithmetic tree, the atoms of the arithmetic include:
-    numbers;
-    sensors: <px>, <py>, <ox>, <oy>, <t>, <b>, <r>, <sf>, <sl>, <sr>, <s>, <m>
-    [n] the result of calling the function in the gene n places along the genome
-    {n} the result of evaluating the function of the gene n places along, and performing its action
+A Genome is composed of two parts; the metagenome and the coding region.
 
-Actions:
-    Forward, Backwards, LeftTurn, RightTurn, Suck, Nop are as they appear
-    Then, where V represents the value of the gene's function
-    Call: add a call to the function [V] places along the genome to the function queue
-    Promote: Promote a gene [V] places along  to the top of this goomba's expression order
-    Demote: Demote a gene [V] places along to the bottom of the expression order
+Metagenome: This is composed of floating point numbers in the following order.
+    4 x <r><g><b>       colors: four colour triplets that determine the hue of a goomba's vertices.
+                        Internal colours are interpolated from the corners.
 
-When a genome is instantiated from a sequence, it builds the corresponding function,
+    <fuzziness>         determines the fuzziness of the comparison operators. If this value is 2.0,
+                        fuzzy equality of two numbers is 1.0 if they are equal, 0.0 if their
+                        difference is greater than 2.0, values linearly interpolated in the
+                        intermediate region. Things are similar for inequality operators.
+
+    <low> <high>        const_bound limits: the range of values possible for newly-generated
+                        numbers, for example inside constant leaf nodes of arithmetic trees.
+
+    <fun_gen_depth>     the maximum height that a newly-generated random function tree may attain
+
+    <incr> <mult>       max value of increment or multiple factors involved in mutating constants
+
+    <mute>              the mutation rate of the mutation rate genes
+
+    <genome>            mute rate of other genes
+
+    <gene_action>       chance to mutate a gene's action; complement of prob to mutate its function
+
+    <struct_mod>        chance to perform a structure-modifying mutation, or otherwise
+
+    <leaf_type>         chance to mutate a leaf's type versus its value
+
+    genome_rel          composed of individual relative genome mute rates:
+                        <insert> <dupe> <delete> <invert> <mutegene>
+
+    const_rel           composed of individual relative constant mute rates:
+                        <incr> <decr> <mult> <div>
+
+    leaf_rel            relative prevalence of leaf types:
+                        <pure_call> <impure_call> <poll_sensor> <constant>
+
+    enum_rel            relative prevalence of enum mutations:
+                        <increment> <decrement> <random>
+
+    struct_rel          relative rates for gene mutations:
+                        <replace_subtree> <operator_above> <swap_operands>
+
+
+    These latter compounds ending in "_rel" determine the approximate proportions with which
+    the corresponding actions will be taken, or objects will occur.
+
+Coding Region: This is a sequence of individual genes.
+    Each contains first a number, the action code, which determines what the gene does,
+    followed by an arithmetic expression in polish notation, determining the value of the function.
+
+    When a gene is expressed, this expression is unpacked into a binary tree, whose internal nodes
+    may include any of the following operators: + - * / % ^ = < >
+    Each internal node has two children, each of which may be either another internal node,
+    or else a leaf node.
+    Leaf nodes contain a value and a reference, and may be any one of four types:
+
+        Constants: when evaluated simply return the value they contain.
+                   In the genome, these simply appear as numbers.
+
+        Sensors: their references are functions returning the state of the sensor determined by
+                 this leaf's value.
+                 A sensor is denoted by $n in the genome, where n is the sensor number.
+
+        Pure Offset Calls: refers to the function inside the gene a number of places down
+                           the genome, modulo the genome's length.
+                           The number of places down is determined by the leaf's value.
+                           Evaluating this leaf calls the referenced function, without performing
+                           its gene's action.
+                           An offset call increments the stack depth, and so may not be made
+                           if the stack is already full.
+
+                           Pure offset calls appear as [n in the genome, n being the value
+                           of the offset.
+
+        Impure Offset Call: Exactly as a pure call, but the genetic action is performed,
+                            as if the gene was in the gene queue.
+                            Such calls still respect maximum stack depth.
+
+                            Impure calls look like {n in the genome.
+
+
+When a genome is instantiated from a sequence, these function trees are built.
 However, if not inside an agent, it's possible to encode infinite recursive loops,
 and sensors are obviously not hooked up to anything.
-
-metagenome, composed of floating point numbers, like <gene>
-    <fuzziness>         determines the fuzziness of the comparison operators
-    <low> <high>        the range of values possible for newly-generated floats
-    <fun_gen_depth>     the maximum depth that a newly-generated random function may extend to
-    <incr> <mult>       max value of increment or multiple factors involved in mutating constants
-    3 x <r><g><b>       triplets determining colour
-    <mute_mute_rate>    determining the mutation rate of the mutation rate genes
-    <genome_mute_rate>  mute rate of genome mutations
-    <gene_action>       chance to mutate a gene's action; complement of prob to mutate its function
-    <struct_mod>        chance to perform a structure-modifying mutation or a non-structure-modifying one
-    <leaf_type>         chance to mutate a leaf's type or its value
-    individual relative genome mute rates: <insert> <dupe> <delete> <invert> <mutegene>
-    individual relative constant mute rates: <incr> <decr> <mult> <div>
-    relative prevalence of leaf types: <pure_call> <impure_call> <poll_sensor> <constant>
-    relative prevalence of enum mutations: <increment> <decrement> <random>
-    relative rates for gene mutations: <replace_subtree> <operator_above> <swap_operands>
-
+So a genome is non-functional unless expressed by an agent.
 """
-
 
 import random
 from enum import IntEnum
@@ -47,6 +94,17 @@ from util import weighted_choice
 import goomba
 
 class GenomeMutes(IntEnum):
+    """All possible genome-level mutations.
+
+    When performing a mutation, first a gene index is selected, then the mutation applied.
+
+    Insert:    places a new random gene in the genome immediately before the selected gene.
+    Dupe:      duplicates the selected gene.
+    Delete:    deletes the selected gene.
+    Invert:    swaps the positions of the selected gene and the one following.
+    MuteGene:  performs an internal mutation upon the selected gene.
+    """
+
     Insert = 0
     Dupe = 1
     Delete = 2
@@ -54,17 +112,29 @@ class GenomeMutes(IntEnum):
     MuteGene = 4
 
 class ConstMutes(IntEnum):
+    """Constant values may be incremented or multiplied by a genetically-determined quantity."""
+
     Increment = 0
     Decrement = 1
     Incremult = 2
     Decremult = 3
 
 class EnumMutes(IntEnum):
+    """Enums, such as sensor or action codes are mutated as discrete values in a finite range."""
+
     Increment = 0
     Decrement = 1
     Random = 2
 
 class StructMutes(IntEnum):
+    """All structure-modifying mutations.
+
+    SubTree:    replace a node with an entirely new random subtree.
+    OpAbove:    introduce a new operator in place of the selected node, which becomes one of the
+                operands, where the other operand is randomly generated.
+    Swap:       swap a pair of operands. If a leaf was selected, swap the operands of its parent.
+    """
+
     SubTree = 0
     OpAbove = 1
     Swap = 2
