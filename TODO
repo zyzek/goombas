@@ -12,6 +12,7 @@ Diagnostic information:
     species data
     goomba lineages
 No display mode (for faster computation)
+Move tree calculations to a compiled form, C++ Boost.Python
     
 
 ?:
